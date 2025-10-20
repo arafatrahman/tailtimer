@@ -8,19 +8,20 @@ struct TodayView: View {
     
     @State private var medicationToEdit: Medication?
     @State private var visibleSection: TimePeriod? = .none
-
-    // --- Helper: Get all doses for today ---
+    
+    @State private var showToast: Bool = false
+    @State private var toastInfo: ToastInfo? = nil
+    
+    // --- (Computed properties and helper functions are unchanged) ---
+    
     private var scheduledDosesToday: [ScheduledDose] {
         var doses: [ScheduledDose] = []
         let today = Calendar.current.startOfDay(for: .now)
-        
         for med in medications {
             let start = Calendar.current.startOfDay(for: med.startDate)
             let end = Calendar.current.startOfDay(for: med.endDate)
             guard today >= start && today <= end else { continue }
-            
             guard isScheduledForToday(med, today, start) else { continue }
-            
             for time in med.reminderTimes {
                 doses.append(ScheduledDose(medication: med, time: time))
             }
@@ -28,7 +29,6 @@ struct TodayView: View {
         return doses.sorted { $0.time < $1.time }
     }
     
-    // Helper: Check frequency
     private func isScheduledForToday(_ med: Medication, _ today: Date, _ start: Date) -> Bool {
         switch med.frequencyType {
         case "Daily": return true
@@ -46,7 +46,6 @@ struct TodayView: View {
         }
     }
 
-    // --- Group Doses by Time of Day ---
     private func doses(for period: TimePeriod) -> [ScheduledDose] {
         scheduledDosesToday.filter { dose in
             let hour = Calendar.current.component(.hour, from: dose.time)
@@ -59,74 +58,78 @@ struct TodayView: View {
         }
     }
     
-    // --- Main Body ---
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Header
-                    TodayProgressHeader(
-                        progress: progress,
-                        remaining: remainingCount,
-                        taken: takenCount
-                    )
-                    .padding(.horizontal)
-                    
-                    // Time-Based Sections
-                    TodaySection(
-                        period: .morning,
-                        doses: doses(for: .morning),
-                        logs: logs,
-                        onMark: markAsTaken,
-                        onEdit: { med in medicationToEdit = med },
-                        onDelete: deleteMedication // <-- Pass delete action
-                    )
-                    
-                    TodaySection(
-                        period: .afternoon,
-                        doses: doses(for: .afternoon),
-                        logs: logs,
-                        onMark: markAsTaken,
-                        onEdit: { med in medicationToEdit = med },
-                        onDelete: deleteMedication // <-- Pass delete action
-                    )
-                    
-                    TodaySection(
-                        period: .evening,
-                        doses: doses(for: .evening),
-                        logs: logs,
-                        onMark: markAsTaken,
-                        onEdit: { med in medicationToEdit = med },
-                        onDelete: deleteMedication // <-- Pass delete action
-                    )
-                    
-                    TodaySection(
-                        period: .night,
-                        doses: doses(for: .night),
-                        logs: logs,
-                        onMark: markAsTaken,
-                        onEdit: { med in medicationToEdit = med },
-                        onDelete: deleteMedication // <-- Pass delete action
-                    )
+        ZStack {
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        TodayProgressHeader(
+                            totalDoses: totalDosesToday,
+                            taken: takenCount,
+                            ignored: ignoredCount
+                        )
+                        .padding(.horizontal)
+                        
+                        // --- (Rest of the view is unchanged) ---
+                        TodaySection(
+                            period: .morning,
+                            doses: doses(for: .morning),
+                            logs: logs,
+                            onMark: markAsTaken,
+                            onEdit: { med in medicationToEdit = med },
+                            onDelete: deleteMedication
+                        )
+                        
+                        TodaySection(
+                            period: .afternoon,
+                            doses: doses(for: .afternoon),
+                            logs: logs,
+                            onMark: markAsTaken,
+                            onEdit: { med in medicationToEdit = med },
+                            onDelete: deleteMedication
+                        )
+                        
+                        TodaySection(
+                            period: .evening,
+                            doses: doses(for: .evening),
+                            logs: logs,
+                            onMark: markAsTaken,
+                            onEdit: { med in medicationToEdit = med },
+                            onDelete: deleteMedication
+                        )
+                        
+                        TodaySection(
+                            period: .night,
+                            doses: doses(for: .night),
+                            logs: logs,
+                            onMark: markAsTaken,
+                            onEdit: { med in medicationToEdit = med },
+                            onDelete: deleteMedication
+                        )
+                    }
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Today's Schedule")
-            .sheet(item: $medicationToEdit) { med in
-                if let pet = med.pet {
-                    AddMedicationView(pet: pet, medicationToEdit: med)
-                } else {
-                    Text("Error: Pet not found for this medication.")
+                .background(Color(.systemGroupedBackground))
+                .navigationTitle("Today's Schedule")
+                .sheet(item: $medicationToEdit) { med in
+                    if let pet = med.pet {
+                        AddMedicationView(pet: pet, medicationToEdit: med)
+                    } else {
+                        Text("Error: Pet not found for this medication.")
+                    }
+                }
+                .onAppear {
+                    visibleSection = TimePeriod.current
                 }
             }
-            .onAppear {
-                visibleSection = TimePeriod.current
+            
+            if showToast, let info = toastInfo {
+                AnimatedToastView(info: info, isShowing: $showToast)
             }
         }
     }
     
-    // --- Stats & Logic ---
+    // --- (Stats & Logic functions) ---
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
         let doseScheduledTime = dose.scheduledTimeForToday
         return logs.first { log in
@@ -135,15 +138,30 @@ struct TodayView: View {
         }
     }
     
-    private var takenCount: Int {
-        scheduledDosesToday.filter { logFor(dose: $0) != nil }.count
+    private var totalDosesToday: Int {
+        scheduledDosesToday.count
     }
+    
+    private var completedDoses: [ScheduledDose] {
+        scheduledDosesToday.filter { logFor(dose: $0) != nil }
+    }
+    
+    private var takenCount: Int {
+        completedDoses.filter { logFor(dose: $0)?.status == "taken" }.count
+    }
+    
+    private var ignoredCount: Int {
+        completedDoses.filter { logFor(dose: $0)?.status == "missed" }.count
+    }
+    
     private var remainingCount: Int {
         scheduledDosesToday.filter { logFor(dose: $0) == nil }.count
     }
+    
     private var progress: Double {
-        let total = scheduledDosesToday.count
-        return total == 0 ? 1.0 : Double(takenCount) / Double(total)
+        let total = totalDosesToday
+        let taken = Double(takenCount)
+        return total == 0 ? 0.0 : taken / Double(total)
     }
     
     private func markAsTaken(dose: ScheduledDose, status: Bool) {
@@ -156,10 +174,16 @@ struct TodayView: View {
             )
             newLog.medication = dose.medication
             modelContext.insert(newLog)
+            
+            self.toastInfo = ToastInfo(
+                symbol: status ? "checkmark.circle.fill" : "xmark.circle.fill",
+                text: status ? "Marked as Taken!" : "Marked as Ignored",
+                color: status ? .green : .red
+            )
+            self.showToast = true
         }
     }
     
-    // --- Delete Function ---
     private func deleteMedication(medication: Medication) {
         withAnimation {
             NotificationManager.shared.removeNotification(for: medication)
@@ -168,14 +192,11 @@ struct TodayView: View {
     }
 }
 
-// --- Enum for Time Periods (No Change) ---
+// --- (Enum and TodaySection are unchanged) ---
+
 enum TimePeriod: String, CaseIterable {
     // ... (code is identical)
-    case morning = "Morning"
-    case afternoon = "Afternoon"
-    case evening = "Evening"
-    case night = "Night"
-    
+    case morning = "Morning", afternoon = "Afternoon", evening = "Evening", night = "Night"
     var icon: String {
         switch self {
         case .morning: return "sun.max.fill"
@@ -184,7 +205,6 @@ enum TimePeriod: String, CaseIterable {
         case .night: return "moon.fill"
         }
     }
-    
     var color: Color {
         switch self {
         case .morning: return .orange
@@ -193,7 +213,6 @@ enum TimePeriod: String, CaseIterable {
         case .night: return .purple
         }
     }
-    
     static var current: TimePeriod {
         let hour = Calendar.current.component(.hour, from: .now)
         switch hour {
@@ -205,17 +224,16 @@ enum TimePeriod: String, CaseIterable {
     }
 }
 
-// --- 1. TodaySection (UPDATED) ---
 struct TodaySection: View {
+    // ... (code is identical)
     let period: TimePeriod
     let doses: [ScheduledDose]
     let logs: [MedicationLog]
     
     var onMark: (ScheduledDose, Bool) -> Void
     var onEdit: (Medication) -> Void
-    var onDelete: (Medication) -> Void // <-- Added delete closure
+    var onDelete: (Medication) -> Void
     
-    // Filter doses for this section
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
         let doseScheduledTime = dose.scheduledTimeForToday
         return logs.first { log in
@@ -227,7 +245,6 @@ struct TodaySection: View {
     private var remainingDoses: [ScheduledDose] {
         doses.filter { logFor(dose: $0) == nil }.sorted(by: { $0.time < $1.time })
     }
-    
     private var completedDoses: [ScheduledDose] {
         doses.filter { logFor(dose: $0) != nil }.sorted(by: { $0.time < $1.time })
     }
@@ -237,71 +254,38 @@ struct TodaySection: View {
     var body: some View {
         if !doses.isEmpty {
             VStack(spacing: 0) {
-                // Section Header
                 HStack(spacing: 12) {
                     Image(systemName: period.icon)
-                        .font(.title2)
-                        .foregroundColor(period.color)
-                        .frame(width: 30)
-                    Text(period.rawValue)
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(.title2).foregroundColor(period.color).frame(width: 30)
+                    Text(period.rawValue).font(.title2).fontWeight(.bold)
                     Spacer()
-                    Text("\(completedDoses.count)/\(doses.count) Taken")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
+                    Text("\(completedDoses.count)/\(doses.count) Completed")
+                        .font(.caption).fontWeight(.medium).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal)
                 
-                // Animated Dose List
                 VStack(spacing: 12) {
-                    // Remaining Doses
                     ForEach(remainingDoses) { dose in
-                        TodayMedicationRow(
-                            dose: dose,
-                            log: nil,
-                            onMark: onMark,
-                            onEdit: onEdit
-                        )
-                        .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
-                        // --- Swipe to Delete ---
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                onDelete(dose.medication)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                        TodayMedicationRow(dose: dose, log: nil, onMark: onMark, onEdit: onEdit)
+                            .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) { onDelete(dose.medication) } label: { Label("Delete", systemImage: "trash") }
                             }
-                        }
                     }
                     
-                    // Completed Doses (Collapsible)
                     if !completedDoses.isEmpty {
                         DisclosureGroup(isExpanded: $isExpanded.animation()) {
                             VStack(spacing: 12) {
                                 ForEach(completedDoses) { dose in
-                                    TodayMedicationRow(
-                                        dose: dose,
-                                        log: logFor(dose: dose),
-                                        onMark: onMark,
-                                        onEdit: onEdit
-                                    )
-                                    .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
-                                    // --- Swipe to Delete ---
-                                    .swipeActions(edge: .trailing) {
-                                        Button(role: .destructive) {
-                                            onDelete(dose.medication)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
+                                    TodayMedicationRow(dose: dose, log: logFor(dose: dose), onMark: onMark, onEdit: onEdit)
+                                        .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
+                                        .swipeActions(edge: .trailing) {
+                                            Button(role: .destructive) { onDelete(dose.medication) } label: { Label("Delete", systemImage: "trash") }
                                         }
-                                    }
                                 }
                             }
                         } label: {
-                            Text("Completed")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.secondary)
+                            Text("Completed").font(.subheadline).fontWeight(.medium).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -315,68 +299,96 @@ struct TodaySection: View {
     }
 }
 
-// --- 2. TodayProgressHeader (No Change) ---
+
+// --- TodayProgressHeader (REDESIGNED) ---
 struct TodayProgressHeader: View {
-    let progress: Double
-    let remaining: Int
+    let totalDoses: Int
     let taken: Int
-    
+    let ignored: Int
+
+    private var takenPercent: Double {
+        totalDoses == 0 ? 0 : Double(taken) / Double(totalDoses)
+    }
+    private var ignoredPercent: Double {
+        totalDoses == 0 ? 0 : Double(ignored) / Double(totalDoses)
+    }
+    private var progressText: Double {
+        totalDoses == 0 ? 0 : Double(taken) / Double(totalDoses)
+    }
+    private var remaining: Int {
+        totalDoses - taken - ignored
+    }
+
     var body: some View {
-        HStack(spacing: 20) {
-            ZStack {
-                Circle().stroke(Color(.systemGray5), lineWidth: 10)
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(Color.blue, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: progress)
-                VStack {
-                    Text(progress, format: .percent)
-                        .font(.title2).fontWeight(.bold)
-                    Text("Done").font(.caption).foregroundStyle(.secondary)
-                }
+        VStack(spacing: 12) {
+            // --- 1. Top Row: Percentage ---
+            HStack(alignment: .firstTextBaseline) {
+                Text(progressText.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                Text("Taken")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                Spacer()
             }
-            .frame(width: 100, height: 100)
             
-            HStack(spacing: 12) {
-                // Remaining Stat
-                HStack(spacing: 8) {
-                    Image(systemName: "list.bullet.clipboard")
-                        .font(.title2)
-                        .foregroundColor(.blue)
-                    VStack(alignment: .leading) {
-                        Text("\(remaining)")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        Text("Remaining")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+            // --- 2. Middle Row: Segmented Progress Bar ---
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    Color.green
+                        .frame(width: geo.size.width * takenPercent)
+                    Color.red
+                        .frame(width: geo.size.width * ignoredPercent)
+                    Color(.systemGray5)
+                        .frame(maxWidth: .infinity)
                 }
-                
-                Spacer()
-                Divider()
-                Spacer()
-                
-                // Taken Stat
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.green)
-                    VStack(alignment: .leading) {
-                        Text("\(taken)")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        Text("Taken")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: takenPercent)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: ignoredPercent)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 10)
+            .clipShape(Capsule())
+            
+            // --- 3. Bottom Row: Stats (with icons) ---
+            HStack {
+                StatItem(value: remaining, label: "Remaining", icon: "list.bullet.clipboard", color: .secondary)
+                Spacer()
+                StatItem(value: taken, label: "Taken", icon: "checkmark.circle.fill", color: .green)
+                Spacer()
+                StatItem(value: ignored, label: "Ignored", icon: "xmark.circle.fill", color: .red)
+            }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground))
         .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+    }
+}
+
+// --- StatItem Helper View (REDESIGNED) ---
+// This struct replaces the old HeaderStatItem
+struct StatItem: View {
+    let value: Int
+    let label: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        // This layout matches your screenshot
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+
+            Text("\(value)")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .contentTransition(.numericText()) // Animates number changes
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: value)
+            
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(color == .secondary ? .secondary : color)
+        }
+        .frame(minWidth: 70) // Give each item some space
     }
 }
