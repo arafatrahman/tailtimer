@@ -19,7 +19,6 @@ struct PetProfileView: View {
     }
     
     var body: some View {
-        // Use .insetGrouped for a modern profile list
         List {
             // --- Section 1: Redesigned Profile Header ---
             Section {
@@ -56,26 +55,32 @@ struct PetProfileView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical)
             }
-            // Make the header blend with the background
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color(.systemGroupedBackground))
             
-            // --- Section 2: Medications ---
+            // --- Section 2: Medications (UPDATED) ---
             Section("Medications") {
                 if sortedMedications.isEmpty {
                     Text("No medications added yet.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(sortedMedications) { medication in
-                        MedicationRowView(medication: medication)
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    medicationToEdit = medication
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
+                        // --- THIS IS THE CHANGE ---
+                        Button {
+                            medicationToEdit = medication // Set the med to edit on tap
+                        } label: {
+                            MedicationRowView(medication: medication)
+                        }
+                        .buttonStyle(.plain) // Make it look like a row, not a blue button
+                        // --- END OF CHANGE ---
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                medicationToEdit = medication
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
                             }
+                            .tint(.blue)
+                        }
                     }
                     .onDelete(perform: deleteMedication)
                 }
@@ -109,7 +114,7 @@ struct PetProfileView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped) // Apply modern style
+        .listStyle(.insetGrouped)
         .navigationTitle(pet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -125,7 +130,7 @@ struct PetProfileView: View {
         .sheet(isPresented: $isAddingMedication) {
             AddMedicationView(pet: pet)
         }
-        .sheet(item: $medicationToEdit) { med in
+        .sheet(item: $medicationToEdit) { med in // This sheet handles the edit
             AddMedicationView(pet: pet, medicationToEdit: med)
         }
         .sheet(isPresented: $isAddingHealthNote) {
@@ -157,7 +162,7 @@ struct PetProfileView: View {
 }
 
 
-// --- Helper View: PetStatBubble ---
+// --- Helper View: PetStatBubble (No Change) ---
 struct PetStatBubble: View {
     let label: String
     let value: String
