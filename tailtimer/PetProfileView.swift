@@ -8,63 +8,59 @@ struct PetProfileView: View {
     @State private var isEditingPet = false
     @State private var isAddingMedication = false
     @State private var isAddingHealthNote = false
-    
-    // --- NEW STATE ---
-    // This holds the medication we want to edit
     @State private var medicationToEdit: Medication?
     
-    // Computed properties (no change)
+    // Computed properties for sorted data
     private var sortedMedications: [Medication] {
         pet.medications?.sorted { $0.name < $1.name } ?? []
     }
-    
     private var sortedHealthNotes: [HealthNote] {
         pet.healthNotes?.sorted { $0.date > $1.date } ?? []
     }
     
     var body: some View {
+        // Use .insetGrouped for a modern profile list
         List {
-            // Section 1: Pet Info Header (Unchanged)
+            // --- Section 1: Redesigned Profile Header ---
             Section {
-                // ... (HStack with pet photo and details) ...
-                HStack(alignment: .top, spacing: 20) {
+                VStack(spacing: 16) {
+                    // Pet Photo
                     if let photoData = pet.photo, let uiImage = UIImage(data: photoData) {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 100, height: 100)
+                            .frame(width: 120, height: 120)
                             .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.gray, lineWidth: 2))
+                            .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 2))
+                            .shadow(radius: 5)
                     } else {
                         Image(systemName: "pawprint.circle.fill")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 100, height: 100)
+                            .frame(width: 120, height: 120)
                             .foregroundStyle(.gray.opacity(0.4))
                     }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(pet.name)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                        Text(pet.species)
-                            .font(.headline)
-                        Text(pet.breed)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            Text("Age: \(pet.age)")
-                            Spacer()
-                            Text(pet.gender)
-                            Spacer()
-                        }
-                        .font(.caption)
-                        .padding(.top, 5)
+                    
+                    // Pet Name
+                    Text(pet.name)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    
+                    // Pet Stats Bubbles
+                    HStack(spacing: 10) {
+                        PetStatBubble(label: "Age", value: "\(pet.age)")
+                        PetStatBubble(label: "Species", value: pet.species)
+                        PetStatBubble(label: "Gender", value: pet.gender)
                     }
                 }
+                .frame(maxWidth: .infinity)
                 .padding(.vertical)
             }
+            // Make the header blend with the background
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color(.systemGroupedBackground))
             
-            // Section 2: Medications (UPDATED)
+            // --- Section 2: Medications ---
             Section("Medications") {
                 if sortedMedications.isEmpty {
                     Text("No medications added yet.")
@@ -72,7 +68,6 @@ struct PetProfileView: View {
                 } else {
                     ForEach(sortedMedications) { medication in
                         MedicationRowView(medication: medication)
-                            // --- NEW CODE: SWIPE ACTIONS ---
                             .swipeActions(edge: .leading) {
                                 Button {
                                     medicationToEdit = medication
@@ -82,7 +77,7 @@ struct PetProfileView: View {
                                 .tint(.blue)
                             }
                     }
-                    .onDelete(perform: deleteMedication) // Trailing swipe
+                    .onDelete(perform: deleteMedication)
                 }
                 
                 Button("Add Medication") {
@@ -90,9 +85,8 @@ struct PetProfileView: View {
                 }
             }
             
-            // Section 3: Health Notes (Unchanged)
+            // --- Section 3: Health Notes ---
             Section("Health Notes & Appointments") {
-                // ... (code for health notes list) ...
                 if sortedHealthNotes.isEmpty {
                     Text("No health notes added yet.")
                         .foregroundStyle(.secondary)
@@ -108,49 +102,39 @@ struct PetProfileView: View {
                 }
             }
             
-            // Section 4: History & Analytics (Unchanged)
+            // --- Section 4: History ---
             Section("History & Analytics") {
-                // ... (code for history link) ...
                 NavigationLink(destination: HistoryView(pet: pet)) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "chart.bar.xaxis")
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                        Text("View Medication History")
-                    }
+                    Label("View Medication History", systemImage: "chart.bar.xaxis")
                 }
             }
         }
+        .listStyle(.insetGrouped) // Apply modern style
         .navigationTitle(pet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") {
+                Button("Edit Pet") {
                     isEditingPet.toggle()
                 }
             }
         }
-        // Sheets for Add/Edit Pet, Add Med, Add Note
         .sheet(isPresented: $isEditingPet) {
             AddPetView(petToEdit: pet)
         }
         .sheet(isPresented: $isAddingMedication) {
             AddMedicationView(pet: pet)
         }
-        .sheet(isPresented: $isAddingHealthNote) {
-            AddHealthNoteView(pet: pet)
-        }
-        // --- NEW SHEET ---
-        // This sheet binds to the optional medicationToEdit
-        // When medicationToEdit is set, this sheet opens
         .sheet(item: $medicationToEdit) { med in
             AddMedicationView(pet: pet, medicationToEdit: med)
         }
+        .sheet(isPresented: $isAddingHealthNote) {
+            AddHealthNoteView(pet: pet)
+        }
     }
     
-    // Unchanged functions
+    // --- Delete Functions (No Change) ---
     private func deleteMedication(offsets: IndexSet) {
-        // ... (no change) ...
         withAnimation {
             for index in offsets {
                 let medication = sortedMedications[index]
@@ -162,7 +146,6 @@ struct PetProfileView: View {
     }
     
     private func deleteHealthNote(offsets: IndexSet) {
-        // ... (no change) ...
         withAnimation {
             for index in offsets {
                 let note = sortedHealthNotes[index]
@@ -170,5 +153,27 @@ struct PetProfileView: View {
                 modelContext.delete(note)
             }
         }
+    }
+}
+
+
+// --- Helper View: PetStatBubble ---
+struct PetStatBubble: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack {
+            Text(value)
+                .font(.headline)
+                .fontWeight(.semibold)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 80, minHeight: 40)
+        .padding(8)
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
     }
 }
