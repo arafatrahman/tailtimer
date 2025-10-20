@@ -13,14 +13,14 @@ struct MedicationRowView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 
-                Text("Next dose: \(formattedNextDose())")
+                // --- UPDATED: Show all times ---
+                Text(formattedTimes())
                     .font(.caption)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.accentColor)
             }
             
             Spacer()
             
-            // We can add a "Mark as Taken" button here later
             Image(systemName: "pills.fill")
                 .font(.title)
                 .foregroundStyle(Color.accentColor)
@@ -28,11 +28,16 @@ struct MedicationRowView: View {
         .padding(.vertical, 8)
     }
     
-    // Helper function to format the time
-    private func formattedNextDose() -> String {
+    // --- UPDATED: Helper function to format times ---
+    private func formattedTimes() -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .none
         formatter.timeStyle = .short
-        return formatter.string(from: medication.reminderTime)
+        
+        // Map all dates to their time string and join them with ", "
+        return medication.reminderTimes
+            .sorted()
+            .map { formatter.string(from: $0) }
+            .joined(separator: ", ")
     }
 }

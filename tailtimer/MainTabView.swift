@@ -1,34 +1,41 @@
 import SwiftUI
-import SwiftData // <-- FIX: Added import
+import SwiftData
 
 struct MainTabView: View {
     var body: some View {
         TabView {
-            // Tab 1: Dashboard (the new "home")
+            // Tab 1: New Dashboard
             DashboardView()
+                .tabItem {
+                    Label("Dashboard", systemImage: "square.grid.2x2")
+                }
+            
+            // --- Tab 2: Today's Schedule ---
+            // This is the one you are looking for
+            TodayView()
                 .tabItem {
                     Label("Today", systemImage: "list.bullet.clipboard")
                 }
             
-            // Tab 2: Pets List
+            // Tab 3: Pets List
             PetsListView()
                 .tabItem {
                     Label("Pets", systemImage: "pawprint")
                 }
             
-            // Tab 3: Calendar
+            // Tab 4: Calendar
             CalendarView()
                 .tabItem {
                     Label("Calendar", systemImage: "calendar")
                 }
 
-            // Tab 4: Settings
+            // Tab 5: Settings
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
         }
-        // Request notification permission once, when the main app view appears
+        // Request notification permission once
         .onAppear {
             NotificationManager.shared.requestPermission()
         }
@@ -37,5 +44,5 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView()
-        .modelContainer(for: Pet.self, inMemory: true) // This line now works
+        .modelContainer(for: Pet.self, inMemory: true)
 }

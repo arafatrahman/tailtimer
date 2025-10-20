@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Medication: Codable { // <-- 1. Add Codable
+final class Medication: Codable {
     var id: UUID
     var name: String
     var dosage: String
@@ -10,18 +10,20 @@ final class Medication: Codable { // <-- 1. Add Codable
     var notes: String
     var startDate: Date
     var endDate: Date
-    var reminderTime: Date
+    
+    // --- THIS IS THE KEY CHANGE ---
+    var reminderTimes: [Date] // Was reminderTime: Date
     
     var frequencyType: String
     var customInterval: Int?
     
-    var pet: Pet? // This will NOT be encoded
+    var pet: Pet?
     
     @Relationship(deleteRule: .cascade, inverse: \MedicationLog.medication)
     var history: [MedicationLog]? = []
     
-    // --- Original init (KEEP THIS) ---
-    init(name: String, dosage: String, form: String, notes: String, startDate: Date, endDate: Date, reminderTime: Date, frequencyType: String, customInterval: Int? = nil) {
+    // --- Updated init ---
+    init(name: String, dosage: String, form: String, notes: String, startDate: Date, endDate: Date, reminderTimes: [Date], frequencyType: String, customInterval: Int? = nil) {
         self.id = UUID()
         self.name = name
         self.dosage = dosage
@@ -29,16 +31,16 @@ final class Medication: Codable { // <-- 1. Add Codable
         self.notes = notes
         self.startDate = startDate
         self.endDate = endDate
-        self.reminderTime = reminderTime
+        self.reminderTimes = reminderTimes // Updated
         self.frequencyType = frequencyType
         self.customInterval = customInterval
     }
     
-    // --- 2. Add Manual Codable Conformance ---
+    // --- Updated Codable Conformance ---
     
     enum CodingKeys: String, CodingKey {
-        case id, name, dosage, form, notes, startDate, endDate, reminderTime, frequencyType, customInterval, history
-        // We EXCLUDE 'pet' to prevent a coding cycle
+        case id, name, dosage, form, notes, startDate, endDate, reminderTimes, frequencyType, customInterval, history
+        // We EXCLUDE 'pet'
     }
     
     required init(from decoder: Decoder) throws {
@@ -50,11 +52,10 @@ final class Medication: Codable { // <-- 1. Add Codable
         self.notes = try container.decode(String.self, forKey: .notes)
         self.startDate = try container.decode(Date.self, forKey: .startDate)
         self.endDate = try container.decode(Date.self, forKey: .endDate)
-        self.reminderTime = try container.decode(Date.self, forKey: .reminderTime)
+        self.reminderTimes = try container.decode([Date].self, forKey: .reminderTimes) // Updated
         self.frequencyType = try container.decode(String.self, forKey: .frequencyType)
         self.customInterval = try container.decodeIfPresent(Int.self, forKey: .customInterval)
         self.history = try container.decodeIfPresent([MedicationLog].self, forKey: .history)
-        // 'pet' will be nil here and re-linked during restore
     }
     
     func encode(to encoder: Encoder) throws {
@@ -66,10 +67,9 @@ final class Medication: Codable { // <-- 1. Add Codable
         try container.encode(notes, forKey: .notes)
         try container.encode(startDate, forKey: .startDate)
         try container.encode(endDate, forKey: .endDate)
-        try container.encode(reminderTime, forKey: .reminderTime)
+        try container.encode(reminderTimes, forKey: .reminderTimes) // Updated
         try container.encode(frequencyType, forKey: .frequencyType)
         try container.encodeIfPresent(customInterval, forKey: .customInterval)
         try container.encodeIfPresent(history, forKey: .history)
-        // We EXCLUDE 'pet'
     }
 }

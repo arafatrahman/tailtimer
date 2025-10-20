@@ -2,76 +2,276 @@ import SwiftUI
 import SwiftData
 
 struct DashboardView: View {
+    // --- Database Queries ---
+    @Query private var pets: [Pet]
     @Query private var medications: [Medication]
     @Query(sort: \MedicationLog.date, order: .reverse) private var logs: [MedicationLog]
     
-    // Computed property to find medications scheduled for today
-    private var todaysMedications: [Medication] {
-        medications.filter { med in
-            // 1. Is it within the start/end date range?
-            let today = Calendar.current.startOfDay(for: .now)
+    // --- Computed Properties for Dashboard Stats ---
+    
+    // 1. Stat Card Data
+    private var activeMedications: Int {
+        medications.filter { $0.endDate >= .now }.count
+    }
+    
+    // 2. Adherence Data
+    private var allTimeTaken: Int {
+        logs.filter { $0.status == "taken" }.count
+    }
+    private var allTimeTotalLogged: Int {
+        logs.count
+    }
+    private var overallAdherence: Double {
+        if allTimeTotalLogged == 0 { return 100.0 } // Start at 100%
+        return (Double(allTimeTaken) / Double(allTimeTotalLogged)) * 100.0
+    }
+    
+    // 3. Upcoming Doses Data (logic copied from TodayView)
+    private var remainingDosesToday: [ScheduledDose] {
+        scheduledDosesToday.filter { logFor(dose: $0) == nil }
+    }
+    
+    private var scheduledDosesToday: [ScheduledDose] {
+        var doses: [ScheduledDose] = []
+        let today = Calendar.current.startOfDay(for: .now)
+        
+        for med in medications {
             let start = Calendar.current.startOfDay(for: med.startDate)
             let end = Calendar.current.startOfDay(for: med.endDate)
+            guard today >= start && today <= end else { continue }
             
-            guard today >= start && today <= end else {
-                return false
-            }
-            
-            // 2. Is it scheduled for today based on frequency?
-            // (Simplified: For now, we only support "Daily")
-            // We can add "Weekly" and "Custom" logic here later
+            // Check frequency
             switch med.frequencyType {
             case "Daily":
-                return true
+                break
             case "Weekly":
-                // Check if today's weekday matches the start date's weekday
                 let todayWeekday = Calendar.current.component(.weekday, from: today)
                 let startWeekday = Calendar.current.component(.weekday, from: start)
-                return todayWeekday == startWeekday
+                guard todayWeekday == startWeekday else { continue }
             case "Custom Interval":
                 if let interval = med.customInterval {
                     let daysSinceStart = Calendar.current.dateComponents([.day], from: start, to: today).day ?? 0
-                    return daysSinceStart % interval == 0
+                    guard daysSinceStart % interval == 0 else { continue }
+                } else {
+                    continue
                 }
-                return false
             default:
-                return false
+                continue
+            }
+            
+            // Add all times
+            for time in med.reminderTimes {
+                doses.append(ScheduledDose(medication: med, time: time))
             }
         }
-        .sorted { $0.reminderTime < $1.reminderTime } // Sort by time
+        return doses.sorted { $0.time < $1.time }
     }
     
-    // Helper function to check if a med was already logged today
-    private func logForToday(medication: Medication) -> MedicationLog? {
-        logs.first { log in
-            // Is the log for the same medication AND was it logged today?
-            log.medication?.id == medication.id &&
-            Calendar.current.isDateInToday(log.date)
+    private func logFor(dose: ScheduledDose) -> MedicationLog? {
+        let doseScheduledTime = dose.scheduledTimeForToday
+        return logs.first { log in
+            log.medication?.id == dose.medication.id &&
+            log.scheduledTime == doseScheduledTime
         }
     }
     
+    // --- Main Body ---
     var body: some View {
         NavigationStack {
             List {
-                Section("Today's Schedule") {
-                    if todaysMedications.isEmpty {
-                        Text("No medications scheduled for today.")
+                // --- Section 1: Quick Stats ---
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            StatCard(
+                                value: "\(pets.count)",
+                                label: "Total Pets",
+                                symbol: "pawprint.fill",
+                                color: .blue
+                            )
+                            StatCard(
+                                value: "\(activeMedications)",
+                                label: "Active Meds",
+                                symbol: "pills.fill",
+                                color: .purple
+                            )
+                            StatCard(
+                                value: "\(remainingDosesToday.count)",
+                                label: "Doses Left Today",
+                                symbol: "list.bullet.clipboard.fill",
+                                color: .orange
+                            )
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                } header: {
+                    Text("At a Glance")
+                }
+
+                // --- Section 2: Overall Adherence ---
+                Section("Overall Adherence") {
+                    DashboardAdherenceGauge(percentage: overallAdherence)
+                }
+                
+                // --- Section 3: Pet Overview ---
+                Section("My Pets") {
+                    if pets.isEmpty {
+                        Text("No pets added yet.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(todaysMedications) { med in
-                            TodayMedicationRow(
-                                medication: med,
-                                log: logForToday(medication: med) // Pass in today's log, if it exists
-                            )
+                        ForEach(pets) { pet in
+                            NavigationLink(destination: PetProfileView(pet: pet)) {
+                                PetDashboardRow(pet: pet)
+                            }
+                        }
+                    }
+                }
+                
+                // --- Section 4: Upcoming Doses ---
+                Section("What's Next (Today)") {
+                    if remainingDosesToday.isEmpty {
+                        Text("No more doses scheduled for today! 👍")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        // Show the next 5 upcoming doses
+                        ForEach(remainingDosesToday.prefix(5)) { dose in
+                            UpcomingDoseRow(dose: dose)
                         }
                     }
                 }
             }
-            .navigationTitle("Today's Schedule")
+            .listStyle(.insetGrouped)
+            .navigationTitle("Dashboard")
         }
     }
 }
 
+
+// --- Helper View: StatCard ---
+struct StatCard: View {
+    let value: String
+    let label: String
+    let symbol: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+            
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(width: 140, alignment: .leading)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+// --- Helper View: DashboardAdherenceGauge ---
+struct DashboardAdherenceGauge: View {
+    let percentage: Double
+    
+    private var color: Color {
+        if percentage >= 90 { return .green }
+        if percentage >= 70 { return .yellow }
+        return .red
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("All-Time Performance")
+                    .font(.headline)
+                Spacer()
+                Text(String(format: "%.0f%%", percentage))
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(color)
+            }
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color(.systemGray5))
+                    
+                    Capsule()
+                        .fill(color)
+                        .frame(width: max(0, geo.size.width * (percentage / 100.0)))
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: percentage)
+                }
+                .frame(height: 12)
+            }
+            .frame(height: 12)
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+// --- Helper View: PetDashboardRow ---
+struct PetDashboardRow: View {
+    let pet: Pet
+    
+    var body: some View {
+        HStack {
+            if let photoData = pet.photo, let uiImage = UIImage(data: photoData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 45, height: 45)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "pawprint.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 45, height: 45)
+                    .foregroundStyle(.gray.opacity(0.6))
+            }
+            
+            VStack(alignment: .leading) {
+                Text(pet.name)
+                    .font(.headline)
+                Text("\(pet.medications?.count ?? 0) active medications")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// --- Helper View: UpcomingDoseRow ---
+struct UpcomingDoseRow: View {
+    let dose: ScheduledDose
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(dose.medication.name)
+                    .font(.headline)
+                Text(dose.medication.pet?.name ?? "Unknown Pet")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(dose.time, style: .time)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.accentColor)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+
+// --- Preview ---
 #Preview {
     DashboardView()
         .modelContainer(for: [Pet.self, Medication.self, MedicationLog.self], inMemory: true)

@@ -2,24 +2,29 @@ import Foundation
 import SwiftData
 
 @Model
-final class MedicationLog: Codable { // <-- 1. Add Codable
+final class MedicationLog: Codable {
     var id: UUID
-    var date: Date
-    var status: String // Enum: taken, missed
+    var date: Date // When the user tapped "Take"
+    var status: String
     
-    var medication: Medication? // This will NOT be encoded
+    // --- NEW PROPERTY ---
+    // The time this dose was scheduled for (e.g., 8:00 AM on Oct 20)
+    var scheduledTime: Date
+    
+    var medication: Medication?
 
-    // --- Original init (KEEP THIS) ---
-    init(date: Date, status: String) {
+    // --- Updated init ---
+    init(date: Date, status: String, scheduledTime: Date) {
         self.id = UUID()
         self.date = date
         self.status = status
+        self.scheduledTime = scheduledTime
     }
     
-    // --- 2. Add Manual Codable Conformance ---
+    // --- Updated Codable Conformance ---
     
     enum CodingKeys: String, CodingKey {
-        case id, date, status
+        case id, date, status, scheduledTime
         // We EXCLUDE 'medication'
     }
     
@@ -28,7 +33,7 @@ final class MedicationLog: Codable { // <-- 1. Add Codable
         self.id = try container.decode(UUID.self, forKey: .id)
         self.date = try container.decode(Date.self, forKey: .date)
         self.status = try container.decode(String.self, forKey: .status)
-        // 'medication' will be nil here and re-linked during restore
+        self.scheduledTime = try container.decode(Date.self, forKey: .scheduledTime) // Updated
     }
     
     func encode(to encoder: Encoder) throws {
@@ -36,6 +41,6 @@ final class MedicationLog: Codable { // <-- 1. Add Codable
         try container.encode(id, forKey: .id)
         try container.encode(date, forKey: .date)
         try container.encode(status, forKey: .status)
-        // We EXCLUDE 'medication'
+        try container.encode(scheduledTime, forKey: .scheduledTime) // Updated
     }
 }

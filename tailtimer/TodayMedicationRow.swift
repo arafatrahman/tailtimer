@@ -1,29 +1,27 @@
 import SwiftUI
-import SwiftData // <-- FIX: Added import
+import SwiftData
 
 struct TodayMedicationRow: View {
     @Environment(\.modelContext) private var modelContext
-    let medication: Medication
-    let log: MedicationLog? // Today's log, if one exists
+    let dose: ScheduledDose
+    let log: MedicationLog?
     
-    // Get the status from the log, or "pending" if no log exists
     private var status: String {
         log?.status ?? "pending"
     }
     
     var body: some View {
         HStack {
-            // Pet and Med Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(medication.name)
+                Text(dose.medication.name)
                     .font(.headline)
-                    .strikethrough(status == "taken") // Strikethrough if taken
+                    .strikethrough(status == "taken")
                 
-                Text(medication.pet?.name ?? "Pet")
+                Text(dose.medication.pet?.name ?? "Pet")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 
-                Text(medication.reminderTime, style: .time)
+                Text(dose.time, style: .time)
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(Color.accentColor)
@@ -31,11 +29,7 @@ struct TodayMedicationRow: View {
             
             Spacer()
             
-            // --- Action Buttons ---
-            
-            // If no log exists (pending), show Take/Skip
             if status == "pending" {
-                // "Take" Button
                 Button {
                     markAsTaken(true)
                 } label: {
@@ -45,7 +39,6 @@ struct TodayMedicationRow: View {
                 }
                 .buttonStyle(.plain)
                 
-                // "Skip" Button
                 Button {
                     markAsTaken(false)
                 } label: {
@@ -56,7 +49,6 @@ struct TodayMedicationRow: View {
                 .buttonStyle(.plain)
                 .padding(.leading, 8)
             }
-            // If already taken, show a confirmation
             else if status == "taken" {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
@@ -65,7 +57,6 @@ struct TodayMedicationRow: View {
                 .font(.subheadline)
                 .foregroundStyle(.green)
             }
-            // If skipped, show that
             else if status == "missed" {
                 HStack(spacing: 4) {
                     Image(systemName: "xmark.circle.fill")
@@ -78,17 +69,18 @@ struct TodayMedicationRow: View {
         .padding(.vertical, 8)
     }
     
-    // Function to create the log entry
     private func markAsTaken(_ didTake: Bool) {
         withAnimation {
             let status = didTake ? "taken" : "missed"
-            let newLog = MedicationLog(date: .now, status: status)
             
-            // Link the log to the medication
-            newLog.medication = medication
+            let newLog = MedicationLog(
+                date: .now,
+                status: status,
+                scheduledTime: dose.scheduledTimeForToday
+            )
             
-            // Insert the log into the database
-            modelContext.insert(newLog) // This line now works
+            newLog.medication = dose.medication
+            modelContext.insert(newLog)
         }
     }
 }
