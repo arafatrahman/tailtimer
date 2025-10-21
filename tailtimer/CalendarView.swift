@@ -2,19 +2,19 @@ import SwiftUI
 import SwiftData
 
 struct CalendarView: View {
-    // --- Database Queries ---
+    // --- Database Queries (Unchanged) ---
     @Query private var medications: [Medication]
     @Query(sort: \MedicationLog.date, order: .reverse) private var logs: [MedicationLog]
 
-    // --- State Variables ---
+    // --- State Variables (Unchanged) ---
     @State private var selectedDate: Date = .now
     @State private var showAddOptions = false
     @State private var showAddPetSheet = false
 
-    // --- Binding for Tab Navigation ---
+    // --- Binding for Tab Navigation (Unchanged) ---
     @Binding var selectedTab: Int
 
-    // --- Computed Properties & Helpers ---
+    // --- Computed Properties & Helpers (Unchanged) ---
     private let petColors: [Color] = [.blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .yellow]
 
     private var dosesForSelectedDate: [ScheduledDose] {
@@ -24,7 +24,7 @@ struct CalendarView: View {
             let start = Calendar.current.startOfDay(for: med.startDate)
             let end = Calendar.current.startOfDay(for: med.endDate)
             guard selected >= start && selected <= end else { continue }
-            guard isScheduledForDate(med, selected, start) else { continue } // Use helper
+            guard isScheduledForDate(med, selected, start) else { continue }
             for time in med.reminderTimes {
                 doses.append(ScheduledDose(medication: med, time: time))
             }
@@ -32,7 +32,6 @@ struct CalendarView: View {
         return doses.sorted { $0.time < $1.time }
     }
 
-    // Renamed helper for clarity
     private func isScheduledForDate(_ med: Medication, _ targetDate: Date, _ startDate: Date) -> Bool {
         switch med.frequencyType {
         case "Daily": return true
@@ -43,7 +42,7 @@ struct CalendarView: View {
         case "Custom Interval":
             if let interval = med.customInterval {
                 let daysBetween = Calendar.current.dateComponents([.day], from: startDate, to: targetDate).day ?? 0
-                return daysBetween >= 0 && daysBetween % interval == 0 // Ensure non-negative
+                return daysBetween >= 0 && daysBetween % interval == 0
             }
             return false
         default: return false
@@ -51,18 +50,40 @@ struct CalendarView: View {
     }
 
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
-        let scheduledTimeOnDate = dose.scheduledTime(on: selectedDate) // Use selectedDate
+        let scheduledTimeOnDate = dose.scheduledTime(on: selectedDate)
         return logs.first { log in
             log.medication?.id == dose.medication.id &&
             log.scheduledTime == scheduledTimeOnDate
         }
     }
 
-    // --- Main Body ---
+    // --- Main Body (UPDATED) ---
     var body: some View {
         ZStack {
             NavigationStack {
-                VStack {
+                // Main content in a VStack
+                VStack(spacing: 0) { // Remove default VStack spacing if needed
+
+                    // --- 1. Header with Title and Button ---
+                    HStack {
+                        Text("Calendar")
+                            .font(.largeTitle) // Use large title
+                            .fontWeight(.bold)
+                        Spacer()
+                        Button {
+                            withAnimation(.spring) { showAddOptions = true }
+                        } label: {
+                            Label("Add New", systemImage: "plus.circle.fill") // Use filled circle icon
+                                .labelStyle(.iconOnly) // Show only icon
+                                .font(.title) // Make icon larger
+                                .foregroundColor(.accentColor) // Use accent color
+                        }
+                    }
+                    .padding(.horizontal) // Add padding to the header
+                    .padding(.top)      // Add padding above the header
+                    .padding(.bottom, 8) // Add some space below header
+
+                    // --- 2. DatePicker and List ---
                     DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
                         .datePickerStyle(.graphical)
                         .padding(.horizontal)
@@ -72,6 +93,7 @@ struct CalendarView: View {
                             if dosesForSelectedDate.isEmpty {
                                 Text("No medications scheduled.")
                                     .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .center) // Center if empty
                             } else {
                                 ForEach(dosesForSelectedDate) { dose in
                                     CalendarMedRow(dose: dose, log: logFor(dose: dose))
@@ -79,26 +101,20 @@ struct CalendarView: View {
                             }
                         }
                     }
-                    .background(Color(.systemGroupedBackground))
-                    .scrollContentBackground(.hidden)
+                    .listStyle(.insetGrouped) // Use insetGrouped for better section appearance
+                    .scrollContentBackground(.hidden) // Make list bg transparent
+                    .background(Color(.systemGroupedBackground)) // Match overall background
+
                 }
-                .background(Color(.systemGroupedBackground))
-                .navigationTitle("Calendar")
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button { withAnimation(.spring) { showAddOptions = true } } label: {
-                            Image(systemName: "plus")
-                                .font(.title3.weight(.semibold))
-                                .padding(8).background(Color(.systemGray5))
-                                .foregroundColor(.primary).clipShape(Circle())
-                        }
-                    }
+                .background(Color(.systemGroupedBackground)) // Background for the whole VStack
+                // --- 3. Removed .navigationTitle and .toolbar ---
+                .sheet(isPresented: $showAddPetSheet) {
+                    AddPetView()
                 }
-                .sheet(isPresented: $showAddPetSheet) { AddPetView() }
             }
             .disabled(showAddOptions)
 
-            // Popup Overlay
+            // Popup Overlay (Unchanged)
             if showAddOptions {
                 AddOptionsPopupView(
                     addPetAction: {
@@ -118,7 +134,7 @@ struct CalendarView: View {
 }
 
 
-// --- CalendarMedRow Helper View ---
+// --- CalendarMedRow Helper View (Unchanged) ---
 struct CalendarMedRow: View {
     let dose: ScheduledDose
     let log: MedicationLog?
