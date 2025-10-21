@@ -72,7 +72,7 @@ struct TodayMedicationRow: View {
                     // "Ignore" Button
                     Button {
                         withAnimation(.spring) {
-                            onMark(dose, false) // Mark as Skipped
+                            onMark(dose, false) // Mark as Missed
                         }
                     } label: {
                         Label("Ignore", systemImage: "xmark")
@@ -82,12 +82,12 @@ struct TodayMedicationRow: View {
                     .tint(.red)
                 }
             } else {
-                // Status view (if already taken/Skipped)
+                // Status view (if already taken/Missed)
                 HStack {
                     Spacer()
                     if let log = log {
                         Image(systemName: log.status == "taken" ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        Text(log.status == "taken" ? "Taken" : "Skipped")
+                        Text(log.status == "taken" ? "Taken" : "Missed")
                             .font(.subheadline)
                             .fontWeight(.bold)
                     }
