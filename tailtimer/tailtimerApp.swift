@@ -1,3 +1,5 @@
+// arafatrahman/tailtimer/tailtimer-807d3f57a4c7e555362475f2f99edd4ce085964f/tailtimer/tailtimerApp.swift
+
 import SwiftUI
 import SwiftData
 
@@ -51,10 +53,12 @@ struct PetMedsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainTabView()
+            // Change: Use SplashScreenView as the root view.
+            SplashScreenView()
                 // Apply the persistent color scheme to the entire app
                 .preferredColorScheme(selectedColorScheme)
         }
-        .modelContainer(sharedModelContainer) // This injects the database into your app
+        // This injects the database into your app
+        .modelContainer(sharedModelContainer)
     }
 }

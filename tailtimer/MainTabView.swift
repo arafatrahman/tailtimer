@@ -1,3 +1,4 @@
+
 import SwiftUI
 import SwiftData
 
@@ -31,6 +32,8 @@ struct MainTabView: View {
                 .tabItem { Label("Settings", systemImage: "gear") }
                 .tag(4)
         }
+        // Updated: Set the active tab item color to Orange.
+        .tint(.orange)
         .onAppear {
             NotificationManager.shared.requestPermission()
         }
