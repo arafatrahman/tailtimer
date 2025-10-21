@@ -2,40 +2,35 @@ import SwiftUI
 import SwiftData
 
 struct MainTabView: View {
+    @State private var selectedTab: Int = 0 // 0 = Dashboard, 1 = Today, etc.
+
     var body: some View {
-        TabView {
-            // Tab 1: New Dashboard
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "square.grid.2x2")
-                }
-            
-            // --- Tab 2: Today's Schedule ---
-            // This is the one you are looking for
+        TabView(selection: $selectedTab) {
+            // Tab 1: Dashboard
+            DashboardView(selectedTab: $selectedTab) // Pass binding
+                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2") }
+                .tag(0)
+
+            // Tab 2: Today
             TodayView()
-                .tabItem {
-                    Label("Today", systemImage: "list.bullet.clipboard")
-                }
-            
-            // Tab 3: Pets List
+                .tabItem { Label("Today", systemImage: "list.bullet.clipboard") }
+                .tag(1)
+
+            // Tab 3: Pets
             PetsListView()
-                .tabItem {
-                    Label("Pets", systemImage: "pawprint")
-                }
-            
+                .tabItem { Label("Pets", systemImage: "pawprint") }
+                .tag(2)
+
             // Tab 4: Calendar
-            CalendarView()
-                .tabItem {
-                    Label("Calendar", systemImage: "calendar")
-                }
+            CalendarView(selectedTab: $selectedTab) // Pass binding
+                .tabItem { Label("Calendar", systemImage: "calendar") }
+                .tag(3)
 
             // Tab 5: Settings
             SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
+                .tabItem { Label("Settings", systemImage: "gear") }
+                .tag(4)
         }
-        // Request notification permission once
         .onAppear {
             NotificationManager.shared.requestPermission()
         }

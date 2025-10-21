@@ -66,7 +66,7 @@ struct TodayView: View {
                         TodayProgressHeader(
                             totalDoses: totalDosesToday,
                             taken: takenCount,
-                            ignored: ignoredCount
+                            Skipped: SkippedCount
                         )
                         .padding(.horizontal)
                         
@@ -151,7 +151,7 @@ struct TodayView: View {
         completedDoses.filter { logFor(dose: $0)?.status == "taken" }.count
     }
     
-    private var ignoredCount: Int {
+    private var SkippedCount: Int {
         completedDoses.filter { logFor(dose: $0)?.status == "missed" }.count
     }
     
@@ -179,7 +179,7 @@ struct TodayView: View {
             
             self.toastInfo = ToastInfo(
                 symbol: status ? "checkmark.circle.fill" : "xmark.circle.fill",
-                text: status ? "Marked as Taken!" : "Marked as Ignored",
+                text: status ? "Marked as Taken!" : "Marked as Skipped",
                 color: status ? .green : .red
             )
             self.showToast = true
@@ -304,19 +304,19 @@ struct TodaySection: View {
 struct TodayProgressHeader: View {
     let totalDoses: Int
     let taken: Int
-    let ignored: Int
+    let Skipped: Int
 
     private var takenPercent: Double {
         totalDoses == 0 ? 0 : Double(taken) / Double(totalDoses)
     }
-    private var ignoredPercent: Double {
-        totalDoses == 0 ? 0 : Double(ignored) / Double(totalDoses)
+    private var SkippedPercent: Double {
+        totalDoses == 0 ? 0 : Double(Skipped) / Double(totalDoses)
     }
     private var progressText: Double {
         totalDoses == 0 ? 0 : Double(taken) / Double(totalDoses)
     }
     private var remaining: Int {
-        totalDoses - taken - ignored
+        totalDoses - taken - Skipped
     }
 
     var body: some View {
@@ -336,12 +336,12 @@ struct TodayProgressHeader: View {
                     Color.green
                         .frame(width: geo.size.width * takenPercent)
                     Color.red
-                        .frame(width: geo.size.width * ignoredPercent)
+                        .frame(width: geo.size.width * SkippedPercent)
                     Color(.systemGray5)
                         .frame(maxWidth: .infinity)
                 }
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: takenPercent)
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: ignoredPercent)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: SkippedPercent)
             }
             .frame(height: 10)
             .clipShape(Capsule())
@@ -351,7 +351,7 @@ struct TodayProgressHeader: View {
                 Spacer()
                 StatItem(value: taken, label: "Taken", icon: "checkmark.circle.fill", color: .green)
                 Spacer()
-                StatItem(value: ignored, label: "Ignored", icon: "xmark.circle.fill", color: .red)
+                StatItem(value: Skipped, label: "Skipped", icon: "xmark.circle.fill", color: .red)
             }
         }
         .padding()
