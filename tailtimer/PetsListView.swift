@@ -8,14 +8,24 @@ struct PetsListView: View {
 
     @State private var isAddingPet = false
 
+    // Add properties for gradient colors, matching Dashboard/Today views
+    private let primaryColor = Color.blue
+    private let accentColor = Color.orange
+    
     var body: some View {
         NavigationStack {
             ScrollView {
-                // --- 1. Header with Title and Button ---
+                // --- 1. Header with Title and Button (UPDATED) ---
                 HStack {
                     Text("My Pets")
                         .font(.largeTitle) // Use large title for the main heading
                         .fontWeight(.bold)
+                        // ADDED: Gradient foreground style
+                        .foregroundStyle(LinearGradient(
+                            colors: [accentColor, primaryColor],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ))
                     Spacer() // Pushes button to the right
                     Button {
                         isAddingPet.toggle()
@@ -86,42 +96,75 @@ struct PetsListView: View {
     }
 }
 
-// --- PetListCardView Helper (Unchanged) ---
+// --- PetListCardView Helper (REDESIGNED) ---
 struct PetListCardView: View {
     let pet: Pet
+    
+    // Helper for Pet Color (Copied from DashboardView/TodayMedicationRow for consistency)
+    private func petColor(for pet: Pet) -> Color {
+        let petColors: [Color] = [
+            .blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .yellow
+        ]
+        let hash = abs(pet.name.hashValue)
+        return petColors[hash % petColors.count]
+    }
+    
     private var activeMedCount: Int {
-        pet.medications?.filter { $0.endDate >= .now }.count ?? 0
+        // Filter active medications by checking if endDate is now or in the future
+        pet.medications?.filter { $0.endDate >= Calendar.current.startOfDay(for: .now) }.count ?? 0
     }
 
     var body: some View {
         HStack(spacing: 16) {
-            if let photoData = pet.photo, let uiImage = UIImage(data: photoData) {
-                Image(uiImage: uiImage)
-                    .resizable().scaledToFill()
-                    .frame(width: 60, height: 60).clipShape(Circle())
-            } else {
-                Image(systemName: "pawprint.circle.fill")
-                    .resizable().scaledToFit()
-                    .frame(width: 60, height: 60).foregroundStyle(.gray.opacity(0.4))
+            // --- Pet Avatar / Photo (Updated) ---
+            Group {
+                if let photoData = pet.photo, let uiImage = UIImage(data: photoData) {
+                    Image(uiImage: uiImage)
+                        .resizable().scaledToFill()
+                } else {
+                    // Colorful letter-based avatar when no photo is present
+                    ZStack {
+                        Circle()
+                            .fill(petColor(for: pet).opacity(0.15))
+                        Text(pet.name.prefix(1).uppercased())
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(petColor(for: pet))
+                    }
+                }
             }
+            .frame(width: 65, height: 65) // Slightly larger frame
+            .clipShape(Circle())
+            
+            // --- Pet Info ---
             VStack(alignment: .leading, spacing: 4) {
                 Text(pet.name)
                     .font(.title2).fontWeight(.bold).foregroundStyle(.primary)
                 Text(pet.breed.isEmpty ? pet.species : "\(pet.species) - \(pet.breed)")
                     .font(.subheadline).foregroundStyle(.secondary)
+                
+                // Active Medication Badge (Updated)
                 if activeMedCount > 0 {
-                    Text("\(activeMedCount) active medication\(activeMedCount > 1 ? "s" : "")")
-                        .font(.caption).foregroundStyle(Color.accentColor).padding(.top, 2)
+                    HStack(spacing: 4) {
+                        Image(systemName: "pill.circle.fill")
+                            .font(.caption)
+                        Text("\(activeMedCount) active medication\(activeMedCount > 1 ? "s" : "")")
+                            .font(.caption).fontWeight(.medium)
+                    }
+                    .foregroundColor(Color.accentColor)
+                    .padding(.top, 2)
                 }
             }
+            
             Spacer()
+            
+            // --- Disclosure Indicator ---
             Image(systemName: "chevron.right")
                 .font(.callout.weight(.medium)).foregroundStyle(.secondary.opacity(0.7))
         }
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+        .cornerRadius(16) // Increased rounding
+        .shadow(color: .black.opacity(0.1), radius: 6, y: 3) // Richer shadow
     }
 }
 

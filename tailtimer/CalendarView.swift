@@ -6,13 +6,19 @@ struct CalendarView: View {
     @Query private var medications: [Medication]
     @Query(sort: \MedicationLog.date, order: .reverse) private var logs: [MedicationLog]
 
-    // --- State Variables (Unchanged) ---
+    // --- State Variables (Updated) ---
     @State private var selectedDate: Date = .now
     @State private var showAddOptions = false
     @State private var showAddPetSheet = false
+    @State private var medicationToEdit: Medication?
 
     // --- Binding for Tab Navigation (Unchanged) ---
     @Binding var selectedTab: Int
+
+    // --- Color Theme (ADDED for consistency) ---
+    private let primaryColor = Color.blue
+    private let accentColor = Color.orange
+    private let backgroundColor = Color(.systemGroupedBackground)
 
     // --- Computed Properties & Helpers (Unchanged) ---
     private let petColors: [Color] = [.blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .yellow]
@@ -57,59 +63,92 @@ struct CalendarView: View {
         }
     }
 
-    // --- Main Body (UPDATED) ---
+    // --- Main Body (UPDATED for interactivity) ---
     var body: some View {
         ZStack {
             NavigationStack {
                 // Main content in a VStack
-                VStack(spacing: 0) { // Remove default VStack spacing if needed
+                VStack(spacing: 0) {
 
-                    // --- 1. Header with Title and Button ---
+                    // --- 1. Header with Title and Button (Gradient Title) ---
                     HStack {
                         Text("Calendar")
-                            .font(.largeTitle) // Use large title
+                            .font(.largeTitle)
                             .fontWeight(.bold)
+                            // Gradient foreground style
+                            .foregroundStyle(LinearGradient(
+                                colors: [accentColor, primaryColor],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ))
                         Spacer()
                         Button {
                             withAnimation(.spring) { showAddOptions = true }
                         } label: {
-                            Label("Add New", systemImage: "plus.circle.fill") // Use filled circle icon
-                                .labelStyle(.iconOnly) // Show only icon
-                                .font(.title) // Make icon larger
-                                .foregroundColor(.accentColor) // Use accent color
+                            Label("Add New", systemImage: "plus.circle.fill")
+                                .labelStyle(.iconOnly)
+                                .font(.title)
+                                .foregroundColor(.accentColor)
                         }
                     }
-                    .padding(.horizontal) // Add padding to the header
-                    .padding(.top)      // Add padding above the header
-                    .padding(.bottom, 8) // Add some space below header
+                    .padding(.horizontal)
+                    .padding(.top)
+                    .padding(.bottom, 8)
 
-                    // --- 2. DatePicker and List ---
+                    // --- 2. DatePicker and Schedule List (Redesigned) ---
                     DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
                         .datePickerStyle(.graphical)
                         .padding(.horizontal)
+                        .padding(.bottom, 10)
 
-                    List {
-                        Section("Schedule for \(selectedDate.formatted(date: .abbreviated, time: .omitted))") {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Schedule for \(selectedDate.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 8)
+
                             if dosesForSelectedDate.isEmpty {
                                 Text("No medications scheduled.")
                                     .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .center) // Center if empty
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.vertical, 30)
+                                    .background(Color(.systemBackground))
+                                    .cornerRadius(12)
+                                    .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
                             } else {
-                                ForEach(dosesForSelectedDate) { dose in
-                                    CalendarMedRow(dose: dose, log: logFor(dose: dose))
+                                LazyVStack(spacing: 12) {
+                                    ForEach(dosesForSelectedDate) { dose in
+                                        // WRAPPED in a Button to allow editing
+                                        Button {
+                                            medicationToEdit = dose.medication
+                                        } label: {
+                                            CalendarMedRow(dose: dose, log: logFor(dose: dose))
+                                        }
+                                        .buttonStyle(.plain) // Use plain style to maintain card appearance
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal)
+                        .padding(.bottom, 20)
                     }
-                    .listStyle(.insetGrouped) // Use insetGrouped for better section appearance
-                    .scrollContentBackground(.hidden) // Make list bg transparent
-                    .background(Color(.systemGroupedBackground)) // Match overall background
+                    .background(backgroundColor)
 
                 }
-                .background(Color(.systemGroupedBackground)) // Background for the whole VStack
-                // --- 3. Removed .navigationTitle and .toolbar ---
+                .background(backgroundColor)
                 .sheet(isPresented: $showAddPetSheet) {
                     AddPetView()
+                }
+                // ADDED: Sheet to present AddMedicationView for editing
+                .sheet(item: $medicationToEdit) { med in
+                    // Need to safely check for pet before opening the editor
+                    if let pet = med.pet {
+                        AddMedicationView(pet: pet, medicationToEdit: med)
+                    } else {
+                        Text("Error: Pet not found for this medication.")
+                    }
                 }
             }
             .disabled(showAddOptions)
@@ -134,7 +173,7 @@ struct CalendarView: View {
 }
 
 
-// --- CalendarMedRow Helper View (Unchanged) ---
+// --- CalendarMedRow Helper View (UPDATED Status Color Logic) ---
 struct CalendarMedRow: View {
     let dose: ScheduledDose
     let log: MedicationLog?
@@ -144,26 +183,72 @@ struct CalendarMedRow: View {
         guard let petName = pet?.name else { return .gray }
         let hash = abs(petName.hashValue); return petColors[hash % petColors.count]
     }
+    
+    private var statusInfo: (text: String, color: Color) {
+        if let log = log {
+            return log.status == "taken" ? ("TAKEN", .green) : ("MISSED", .red)
+        } else {
+            return ("PENDING", .secondary)
+        }
+    }
+    
+    // ADDED: New computed property to determine the Capsule color based on status
+    private var capsuleColor: Color {
+        switch statusInfo.text {
+        case "TAKEN":
+            return .green
+        case "MISSED":
+            return .red
+        default: // PENDING
+            return petColor(for: dose.medication.pet)
+        }
+    }
 
     var body: some View {
-         HStack(spacing: 12) {
-            Circle().fill(petColor(for: dose.medication.pet)).frame(width: 10, height: 10)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(dose.medication.name).font(.headline)
-                Text(dose.medication.pet?.name ?? "Unknown").font(.subheadline).foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            // 1. Pet Color Indicator (Prominent Vertical Bar - UPDATED COLOR)
+            Capsule()
+                .fill(capsuleColor) // Use the new status-aware color
+                .frame(width: 8, height: 60)
+                .padding(.vertical, -10) // Extend slightly for prominence
+
+            // 2. Medication and Pet Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(dose.medication.name)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text(dose.medication.pet?.name ?? "Unknown Pet")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+            
             Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(dose.time, style: .time).font(.subheadline).fontWeight(.medium)
-                if let log = log {
-                    Text(log.status == "taken" ? "Taken" : "Ignored").font(.caption).fontWeight(.bold)
-                        .foregroundStyle(log.status == "taken" ? .green : .red)
-                } else {
-                    Text("Pending").font(.caption).foregroundStyle(.secondary)
-                }
+            
+            // 3. Time and Status
+            VStack(alignment: .trailing, spacing: 4) {
+                // Time (Highlighted)
+                Text(dose.time, style: .time)
+                    .font(.title3)
+                    .fontWeight(.heavy)
+                    .foregroundColor(.primary)
+                
+                // Status Pill
+                Text(statusInfo.text)
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(statusInfo.text == "PENDING" ? .secondary : .white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(statusInfo.color.opacity(statusInfo.text == "PENDING" ? 0.2 : 1.0))
+                    .cornerRadius(8)
             }
         }
-        .padding(.vertical, 4)
+        .padding(10) // Padding inside the card
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.08), radius: 6, y: 3) // Slightly richer shadow
     }
 }
 
