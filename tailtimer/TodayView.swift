@@ -12,7 +12,7 @@ struct TodayView: View {
     @State private var showToast: Bool = false
     @State private var toastInfo: ToastInfo? = nil
     
-    // --- (Computed properties and helper functions are unchanged) ---
+    // --- (Computed properties and helper functions) ---
     
     private var scheduledDosesToday: [ScheduledDose] {
         var doses: [ScheduledDose] = []
@@ -131,7 +131,8 @@ struct TodayView: View {
     
     // --- (Stats & Logic functions) ---
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
-        let doseScheduledTime = dose.scheduledTimeForToday
+        // --- UPDATED ---
+        let doseScheduledTime = dose.scheduledTime(on: .now)
         return logs.first { log in
             log.medication?.id == dose.medication.id &&
             log.scheduledTime == doseScheduledTime
@@ -170,7 +171,8 @@ struct TodayView: View {
             let newLog = MedicationLog(
                 date: .now,
                 status: newStatus,
-                scheduledTime: dose.scheduledTimeForToday
+                // --- UPDATED ---
+                scheduledTime: dose.scheduledTime(on: .now)
             )
             newLog.medication = dose.medication
             modelContext.insert(newLog)
@@ -192,10 +194,9 @@ struct TodayView: View {
     }
 }
 
-// --- (Enum and TodaySection are unchanged) ---
+// --- (Enum, TodaySection, TodayProgressHeader, StatItem are unchanged) ---
 
 enum TimePeriod: String, CaseIterable {
-    // ... (code is identical)
     case morning = "Morning", afternoon = "Afternoon", evening = "Evening", night = "Night"
     var icon: String {
         switch self {
@@ -225,7 +226,6 @@ enum TimePeriod: String, CaseIterable {
 }
 
 struct TodaySection: View {
-    // ... (code is identical)
     let period: TimePeriod
     let doses: [ScheduledDose]
     let logs: [MedicationLog]
@@ -235,7 +235,8 @@ struct TodaySection: View {
     var onDelete: (Medication) -> Void
     
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
-        let doseScheduledTime = dose.scheduledTimeForToday
+        // --- UPDATED ---
+        let doseScheduledTime = dose.scheduledTime(on: .now)
         return logs.first { log in
             log.medication?.id == dose.medication.id &&
             log.scheduledTime == doseScheduledTime
@@ -300,7 +301,6 @@ struct TodaySection: View {
 }
 
 
-// --- TodayProgressHeader (REDESIGNED) ---
 struct TodayProgressHeader: View {
     let totalDoses: Int
     let taken: Int
@@ -321,7 +321,6 @@ struct TodayProgressHeader: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // --- 1. Top Row: Percentage ---
             HStack(alignment: .firstTextBaseline) {
                 Text(progressText.formatted(.percent.precision(.fractionLength(0))))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
@@ -332,7 +331,6 @@ struct TodayProgressHeader: View {
                 Spacer()
             }
             
-            // --- 2. Middle Row: Segmented Progress Bar ---
             GeometryReader { geo in
                 HStack(spacing: 0) {
                     Color.green
@@ -348,7 +346,6 @@ struct TodayProgressHeader: View {
             .frame(height: 10)
             .clipShape(Capsule())
             
-            // --- 3. Bottom Row: Stats (with icons) ---
             HStack {
                 StatItem(value: remaining, label: "Remaining", icon: "list.bullet.clipboard", color: .secondary)
                 Spacer()
@@ -364,8 +361,6 @@ struct TodayProgressHeader: View {
     }
 }
 
-// --- StatItem Helper View (REDESIGNED) ---
-// This struct replaces the old HeaderStatItem
 struct StatItem: View {
     let value: Int
     let label: String
@@ -373,7 +368,6 @@ struct StatItem: View {
     let color: Color
     
     var body: some View {
-        // This layout matches your screenshot
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title2)
@@ -381,7 +375,7 @@ struct StatItem: View {
 
             Text("\(value)")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
-                .contentTransition(.numericText()) // Animates number changes
+                .contentTransition(.numericText())
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: value)
             
             Text(label)
@@ -389,6 +383,6 @@ struct StatItem: View {
                 .fontWeight(.medium)
                 .foregroundColor(color == .secondary ? .secondary : color)
         }
-        .frame(minWidth: 70) // Give each item some space
+        .frame(minWidth: 70)
     }
 }

@@ -4,12 +4,9 @@ import SwiftData
 struct HistoryView: View {
     let pet: Pet
     
-    // 1. Get all logs from all medications for this pet
+    // 1. Get all logs
     private var allLogs: [MedicationLog] {
-        // flatMap merges the arrays of logs from each medication
-        // compactMap unwraps the optional history
         let logs = pet.medications?.compactMap { $0.history }.flatMap { $0 } ?? []
-        // Sort them by most recent first
         return logs.sorted { $0.date > $1.date }
     }
     
@@ -17,43 +14,40 @@ struct HistoryView: View {
     private var totalTaken: Int {
         allLogs.filter { $0.status == "taken" }.count
     }
-    
     private var totalMissed: Int {
         allLogs.filter { $0.status == "missed" }.count
     }
-    
     private var totalDoses: Int {
         allLogs.count
     }
-    
     private var adherencePercentage: Double {
-        if totalDoses == 0 {
-            // No doses logged yet
-            return 0.0
-        }
+        if totalDoses == 0 { return 0.0 }
         return (Double(totalTaken) / Double(totalDoses)) * 100.0
     }
 
     var body: some View {
         List {
-            // Section 1: Analytics
+            // Section 1: Analytics (REDESIGNED)
             Section("Adherence Report") {
-                VStack(alignment: .leading, spacing: 10) {
-                    // Adherence Percentage Gauge (Modern UI)
+                VStack(spacing: 20) { // Increased spacing
+                    // Redesigned Gauge
                     AdherenceGauge(percentage: adherencePercentage)
-                        .frame(height: 150)
+                        .frame(height: 120) // Adjusted height
                     
-                    // Stats
+                    // Redesigned Stat Boxes
                     HStack(spacing: 12) {
                         StatBox(title: "Taken", value: "\(totalTaken)", color: .green)
                         StatBox(title: "Missed", value: "\(totalMissed)", color: .red)
                         StatBox(title: "Total", value: "\(totalDoses)", color: .blue)
                     }
                 }
-                .padding(.vertical)
+                .padding(.vertical) // Add padding around the whole section
             }
+            .listRowBackground(Color.clear) // Make background transparent if needed
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)) // Remove default padding
             
-            // Section 2: Full History Log
+            
+            // Section 2: Full History Log (Unchanged)
             Section("Full Log") {
                 if allLogs.isEmpty {
                     Text("No medication history yet.")
@@ -71,9 +65,9 @@ struct HistoryView: View {
     }
 }
 
-// --- Helper Views for the UI ---
+// --- Helper Views ---
 
-// A simple row for the history list
+// HistoryLogRow (Unchanged)
 struct HistoryLogRow: View {
     let log: MedicationLog
     
@@ -82,29 +76,22 @@ struct HistoryLogRow: View {
             Image(systemName: log.status == "taken" ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .font(.title2)
                 .foregroundStyle(log.status == "taken" ? .green : .red)
-            
             VStack(alignment: .leading) {
-                Text(log.medication?.name ?? "Unknown Medication")
-                    .font(.headline)
-                Text(log.medication?.dosage ?? "N/A")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text(log.medication?.name ?? "Unknown Medication").font(.headline)
+                Text(log.medication?.dosage ?? "N/A").font(.subheadline).foregroundStyle(.secondary)
             }
-            
             Spacer()
-            
             VStack(alignment: .trailing, spacing: 2) {
-                Text(log.date.formatted(date: .numeric, time: .omitted))
-                Text(log.date.formatted(date: .omitted, time: .shortened))
+                Text(log.scheduledTime.formatted(date: .numeric, time: .omitted))
+                Text(log.scheduledTime.formatted(date: .omitted, time: .shortened))
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
     }
 }
 
-// A box for the stats
+// --- StatBox (REDESIGNED) ---
 struct StatBox: View {
     let title: String
     let value: String
@@ -113,68 +100,61 @@ struct StatBox: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(.title)
-                .fontWeight(.bold)
-                .foregroundColor(color)
+                .font(.system(size: 28, weight: .bold, design: .rounded)) // Larger font
+                .foregroundColor(color) // Use color for text
             Text(title)
                 .font(.caption)
+                .fontWeight(.medium) // Slightly bolder caption
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .padding(.vertical, 16) // More vertical padding
+        .background(color.opacity(0.15)) // Slightly stronger background tint
+        .cornerRadius(12) // More rounded corners
     }
 }
 
-// A gauge for the adherence percentage
+// --- AdherenceGauge (REDESIGNED) ---
 struct AdherenceGauge: View {
     let percentage: Double
     
     private var color: Color {
-        if percentage >= 80 {
-            return .green
-        } else if percentage >= 50 {
-            return .yellow
-        } else if percentage == 0 {
-            return Color(.systemGray3) // Neutral for 0%
-        } else {
-            return .red
-        }
+        if percentage >= 80 { return .green }
+        if percentage >= 50 { return .yellow }
+        if percentage == 0 { return Color(.systemGray3) }
+        return .red
     }
     
     private var percentageString: String {
-        String(format: "%.0f%%", percentage) // No decimals for cleaner look
+        String(format: "%.0f%%", percentage)
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Background track
-                Circle()
-                    .trim(from: 0.3, to: 0.7)
-                    .stroke(style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
-                    .foregroundColor(Color(.systemGray5))
-                    .rotationEffect(.degrees(90))
-                
-                // Adherence bar
-                Circle()
-                    .trim(from: 0.3, to: 0.3 + (percentage / 100.0) * 0.4)
-                    .stroke(style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
-                    .foregroundColor(color)
-                    .rotationEffect(.degrees(90))
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: percentage)
-                
-                // Text in the middle
-                VStack {
-                    Text(percentageString)
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
-                    Text("Adherence")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .offset(y: -4)
-                }
+        ZStack {
+            // Background track (thinner, lighter gray)
+            Circle()
+                .trim(from: 0.25, to: 0.75) // Adjusted arc slightly
+                .stroke(style: StrokeStyle(lineWidth: 12, lineCap: .round)) // Thinner line
+                .foregroundColor(Color(.systemGray5))
+                .rotationEffect(.degrees(90))
+
+            // Adherence bar (thinner)
+            Circle()
+                .trim(from: 0.25, to: 0.25 + (percentage / 100.0) * 0.5) // Map percentage to arc length
+                .stroke(style: StrokeStyle(lineWidth: 12, lineCap: .round)) // Thinner line
+                .foregroundColor(color) // Use dynamic color
+                .rotationEffect(.degrees(90))
+                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: percentage)
+
+            // Text in the middle (centered)
+            VStack(spacing: 2) { // Reduced spacing
+                Text(percentageString)
+                    .font(.system(size: 36, weight: .bold, design: .rounded)) // Adjusted font size
+                Text("Adherence")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            // Removed offset to keep it centered
         }
     }
 }

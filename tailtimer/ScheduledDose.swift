@@ -23,14 +23,14 @@ extension Date {
     }
 }
 
-// Helper Dose Extension
+// Helper Dose Extension (UPDATED)
 extension ScheduledDose {
-    // Calculates the exact time for this dose today
-    var scheduledTimeForToday: Date {
+    // Calculates the exact time for this dose on a specific day
+    func scheduledTime(on day: Date) -> Date {
         let components = time.hourAndMinute
         return Calendar.current.date(bySettingHour: components.hour ?? 0,
                                      minute: components.minute ?? 0,
                                      second: 0,
-                                     of: .now)!
+                                     of: day)!
     }
 }

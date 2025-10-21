@@ -3,6 +3,9 @@ import SwiftData
 
 struct CalendarView: View {
     @Query private var medications: [Medication]
+    // --- 1. Add Query for logs ---
+    @Query(sort: \MedicationLog.date, order: .reverse) private var logs: [MedicationLog]
+    
     @State private var selectedDate: Date = .now
     
     private let petColors: [Color] = [
@@ -45,6 +48,15 @@ struct CalendarView: View {
         return doses.sorted { $0.time < $1.time }
     }
     
+    // --- 2. Add helper function to find log ---
+    private func logFor(dose: ScheduledDose) -> MedicationLog? {
+        let scheduledTimeOnDate = dose.scheduledTime(on: selectedDate)
+        return logs.first { log in
+            log.medication?.id == dose.medication.id &&
+            log.scheduledTime == scheduledTimeOnDate
+        }
+    }
+    
     var body: some View {
         NavigationStack {
             VStack {
@@ -62,8 +74,9 @@ struct CalendarView: View {
                             Text("No medications scheduled for this day.")
                                 .foregroundStyle(.secondary)
                         } else {
+                            // --- 3. Pass log to row ---
                             ForEach(dosesForSelectedDate) { dose in
-                                CalendarMedRow(dose: dose)
+                                CalendarMedRow(dose: dose, log: logFor(dose: dose))
                             }
                         }
                     }
@@ -73,8 +86,10 @@ struct CalendarView: View {
         }
     }
     
+    // --- Helper Row View (UPDATED) ---
     struct CalendarMedRow: View {
         let dose: ScheduledDose
+        let log: MedicationLog? // <-- Added log
         
         private let petColors: [Color] = [
             .blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .yellow
@@ -102,9 +117,23 @@ struct CalendarView: View {
                 
                 Spacer()
                 
-                Text(dose.time, style: .time)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                // --- 4. Show Time and Status ---
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(dose.time, style: .time)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    if let log = log {
+                        Text(log.status == "taken" ? "Taken" : "Ignored")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(log.status == "taken" ? .green : .red)
+                    } else {
+                        Text("Pending")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .padding(.vertical, 4)
         }
