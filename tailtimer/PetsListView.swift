@@ -4,7 +4,8 @@ import SwiftData
 // Main View for the Pets Tab
 struct PetsListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Pet.name) private var pets: [Pet]
+    @Query private var pets: [Pet] // Fetch all pets
+    @Query private var medications: [Medication] // Fetch all medications
 
     @State private var isAddingPet = false
 
@@ -12,71 +13,102 @@ struct PetsListView: View {
     private let primaryColor = Color.blue
     private let accentColor = Color.orange
     
+    // Computed property for Active Medications (across all pets)
+    private var activeMedicationsCount: Int {
+        // Filter medications to only count those whose end date is today or in the future
+        medications.filter { $0.endDate >= Calendar.current.startOfDay(for: .now) }.count
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                // --- 1. Header with Title and Button (UPDATED) ---
-                HStack {
-                    Text("My Pets")
-                        .font(.largeTitle) // Use large title for the main heading
-                        .fontWeight(.bold)
-                        // ADDED: Gradient foreground style
-                        .foregroundStyle(LinearGradient(
-                            colors: [accentColor, primaryColor],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ))
-                    Spacer() // Pushes button to the right
-                    Button {
-                        isAddingPet.toggle()
-                    } label: {
-                        Label("Add Pet", systemImage: "plus.circle.fill") // Use filled circle icon
-                            .labelStyle(.iconOnly) // Show only the icon
-                            .font(.title) // Make icon larger
-                            .foregroundColor(.accentColor) // Use accent color
+                VStack(alignment: .leading, spacing: 20) {
+                    
+                    // --- 1. Header with Title and Button ---
+                    HStack {
+                        Text("My Pets")
+                            .font(.largeTitle) // Use large title for the main heading
+                            .fontWeight(.bold)
+                            // Gradient foreground style
+                            .foregroundStyle(LinearGradient(
+                                colors: [accentColor, primaryColor],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ))
+                        Spacer() // Pushes button to the right
+                        Button {
+                            isAddingPet.toggle()
+                        } label: {
+                            Label("Add Pet", systemImage: "plus.circle.fill") // Use filled circle icon
+                                .labelStyle(.iconOnly) // Show only the icon
+                                .font(.title) // Make icon larger
+                                .foregroundColor(.accentColor) // Use accent color
+                        }
                     }
-                }
-                .padding(.horizontal) // Add padding to the header
-                .padding(.top) // Add padding above the header
+                    .padding(.horizontal)
+                    .padding(.top)
 
-                // --- 2. Pet List or Empty State ---
-                if pets.isEmpty {
-                    VStack {
-                        Spacer(minLength: 50) // Reduced space
-                        Image(systemName: "pawprint.circle")
-                            .font(.system(size: 60))
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text("No pets added yet.")
-                            .font(.title3)
-                            .padding(.top, 8)
-                        Text("Tap the '+' button above to add your first pet!")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Spacer()
+                    // --- 2. Quick Stats Cards (NEW) ---
+                    HStack(spacing: 12) {
+                        // Assuming StatCard is defined elsewhere (e.g., DashboardView.swift)
+                        StatCard(
+                            value: pets.count,
+                            label: "Total Pets",
+                            icon: "pawprint.fill",
+                            color: .purple,
+                            gradient: [.purple, .indigo]
+                        )
+                        
+                        // Assuming StatCard is defined elsewhere (e.g., DashboardView.swift)
+                        StatCard(
+                            value: activeMedicationsCount,
+                            label: "Active Meds",
+                            icon: "pills.fill",
+                            color: .orange,
+                            gradient: [.orange, .red]
+                        )
                     }
-                    .padding()
-                } else {
-                    LazyVStack(spacing: 16) {
-                        ForEach(pets) { pet in
-                            NavigationLink(destination: PetProfileView(pet: pet)) {
-                                PetListCardView(pet: pet)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    deletePet(pet: pet)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                    .padding(.horizontal)
+                    
+                    // --- 3. Pet List or Empty State ---
+                    if pets.isEmpty {
+                        VStack {
+                            Spacer(minLength: 50)
+                            Image(systemName: "pawprint.circle")
+                                .font(.system(size: 60))
+                                .foregroundColor(.secondary.opacity(0.5))
+                            Text("No pets added yet.")
+                                .font(.title3)
+                                .padding(.top, 8)
+                            Text("Tap the '+' button above to add your first pet!")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                    } else {
+                        LazyVStack(spacing: 16) {
+                            ForEach(pets) { pet in
+                                NavigationLink(destination: PetProfileView(pet: pet)) {
+                                    PetListCardView(pet: pet)
+                                }
+                                .buttonStyle(.plain)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deletePet(pet: pet)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal)
                     }
-                    .padding()
                 }
+                .padding(.vertical) // Add overall vertical padding
             }
             .background(Color(.systemGroupedBackground))
-            // --- 3. Removed .navigationTitle and .toolbar ---
             .sheet(isPresented: $isAddingPet) {
                 AddPetView()
             }
@@ -95,6 +127,11 @@ struct PetsListView: View {
         }
     }
 }
+
+
+// REMOVED: MARK: - Supporting StatCard View (DUPLICATE)
+// The compiler assumes StatCard is defined elsewhere, likely in DashboardView.swift.
+
 
 // --- PetListCardView Helper (REDESIGNED) ---
 struct PetListCardView: View {

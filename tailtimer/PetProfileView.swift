@@ -12,6 +12,7 @@ struct PetProfileView: View {
     
     // Computed properties for sorted data
     private var sortedMedications: [Medication] {
+        // Ensure this list is always safe, even if pet.medications is nil
         pet.medications?.sorted { $0.name < $1.name } ?? []
     }
     private var sortedHealthNotes: [HealthNote] {
@@ -82,6 +83,7 @@ struct PetProfileView: View {
                             .tint(.blue)
                         }
                     }
+                    // Changed .onDelete to operate on sortedMedications, pointing to the safe handler below
                     .onDelete(perform: deleteMedication)
                 }
                 
@@ -138,15 +140,27 @@ struct PetProfileView: View {
         }
     }
     
-    // --- Delete Functions (No Change) ---
+    // --- Delete Functions (FIXED to prevent crash on deleting last item) ---
     private func deleteMedication(offsets: IndexSet) {
         withAnimation {
-            for index in offsets {
-                let medication = sortedMedications[index]
+            // Find the medications to delete using the sorted array
+            let medicationsToDelete = offsets.map { sortedMedications[$0] }
+
+            for medication in medicationsToDelete {
+                // 1. Remove associated notifications
                 NotificationManager.shared.removeNotification(for: medication)
-                pet.medications?.remove(at: index)
+                
+                // 2. Safely remove the medication from the pet's list
+                if let index = pet.medications?.firstIndex(where: { $0.id == medication.id }) {
+                    pet.medications?.remove(at: index)
+                }
+
+                // 3. Delete the medication object from the database context
                 modelContext.delete(medication)
             }
+            
+            // NOTE: The UI update relies on SwiftData detecting the change in pet.medications
+            // or the deletion of the object. Using the safer removal logic above should prevent crashes.
         }
     }
     
