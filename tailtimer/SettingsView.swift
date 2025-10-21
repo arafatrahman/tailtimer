@@ -1,67 +1,125 @@
 import SwiftUI
+import SwiftData
 import UniformTypeIdentifiers
-import SwiftData // <-- FIX: Added import
+import Foundation // For UserDefaults (used by @AppStorage)
+
+// Note: The AppTheme enum must be defined in PetMedsApp.swift or a global file.
+// We include it here for context but assume it's accessible globally.
+/* enum AppTheme: String, CaseIterable, Identifiable {
+    case system = "System Default"
+    case light = "Light"
+    case dark = "Dark"
+    var id: Self { self }
+    
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .light: return .light
+        case .dark: return .dark
+        case .system: return nil
+        }
+    }
+}
+*/
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     
-    // State for file operations
+    // Read/Write persistent states
+    @AppStorage("appTheme") private var storedTheme: String = "System Default"
+    @AppStorage("isSoundEnabled") private var storedSound: Bool = true
+    @AppStorage("snoozeDuration") private var storedSnoozeDuration: Int = 5 // Duration in minutes
+    
+    // Internal UI States
+    @State private var selectedTheme: AppTheme = .system
+    @State private var isSoundEnabled: Bool = true
+    @State private var selectedSnoozeDuration: Int = 5
+    
+    // Backup/Restore States (Used for UI flow, logic in helper structs)
     @State private var isExporting = false
     @State private var isImporting = false
-    
-    // State for alerts
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showAlert = false
-    
-    // State to hold imported data before confirming the restore
     @State private var importedPets: [Pet]?
     @State private var showRestoreConfirmation = false
+    
+    private let snoozeOptions = [5, 10, 15, 30] // Options in minutes
 
     var body: some View {
         NavigationStack {
             List {
-                Section("App") {
-                    // Placeholders for future features
-                    Text("Notification Preferences")
-                    Text("Theme Selection")
-                }
-                
-                Section("Data Management") {
-                    // Backup Button
+                // --- Section 1: Reminders & Notifications ---
+                Section("Reminders & Notifications") {
+                    // ACTIONABLE NOTIFICATION LINK
                     Button {
-                        isExporting.toggle()
+                        // Open iOS Settings directly for this app
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
                     } label: {
-                        Label("Backup Data", systemImage: "archivebox.arrow.up")
+                        HStack {
+                            Text("Manage App Notification Permissions")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
-                    // Restore Button
-                    Button(role: .destructive) {
-                        isImporting.toggle()
-                    } label: {
-                        Label("Restore from Backup", systemImage: "archivebox.arrow.down")
+                    // Toggle for notification sound
+                    Toggle("Notification Sound", isOn: $isSoundEnabled)
+                        .onChange(of: isSoundEnabled) { _, newValue in
+                            storedSound = newValue // Save to AppStorage
+                            // ACTION: You should add logic here to call NotificationManager.rescheduleAll()
+                            print("Notification sound preference saved: \(newValue)")
+                        }
+                    
+                    // Snooze Duration Picker
+                    Picker("Snooze Duration", selection: $selectedSnoozeDuration) {
+                        ForEach(snoozeOptions, id: \.self) { minutes in
+                            Text("\(minutes) min").tag(minutes)
+                        }
                     }
+                    .onChange(of: selectedSnoozeDuration) { _, newValue in
+                        storedSnoozeDuration = newValue // Save to AppStorage
+                        print("Snooze duration saved: \(newValue) min")
+                    }
+                }
+                
+                // --- Section 2: App Theme (ACTIONABLE) ---
+                Section("App Theme") {
+                    Picker("Appearance", selection: $selectedTheme) {
+                        ForEach(AppTheme.allCases) { theme in
+                            Text(theme.rawValue).tag(theme)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedTheme) { _, newTheme in
+                        storedTheme = newTheme.rawValue // Save to AppStorage
+                    }
+                }
+                
+                // --- Section 3: Data Management (Backup/Restore) ---
+                Section("Data Management") {
+                    Button { isExporting.toggle() } label: { Label("Backup Data", systemImage: "archivebox.arrow.up") }
+                    Button(role: .destructive) { isImporting.toggle() } label: { Label("Restore from Backup", systemImage: "archivebox.arrow.down") }
                 }
             }
             .navigationTitle("Settings")
-            // --- Modifiers for File Handling ---
+            // Apply the selected theme
+            .preferredColorScheme(selectedTheme.colorScheme)
             
-            // 1. File Exporter (for backup)
+            // --- File Handlers and Alerts (Unchanged) ---
             .fileExporter(
                 isPresented: $isExporting,
-                document: BackupDocument(context: modelContext), // This line now works
+                document: BackupDocument(context: modelContext),
                 contentType: .json,
                 defaultFilename: "PetMedsBackup-\(formattedDate()).json"
             ) { result in
                 switch result {
-                case .success:
-                    presentAlert(title: "Backup Complete", message: "Your data has been successfully exported.")
-                case .failure(let error):
-                    presentAlert(title: "Backup Failed", message: "Could not export data. Error: \(error.localizedDescription)")
+                case .success: presentAlert(title: "Backup Complete", message: "Your data has been successfully exported.")
+                case .failure(let error): print("Export error: \(error)"); presentAlert(title: "Backup Failed", message: "Could not export data.")
                 }
             }
-            
-            // 2. File Importer (for restore)
             .fileImporter(
                 isPresented: $isImporting,
                 allowedContentTypes: [.json]
@@ -69,84 +127,54 @@ struct SettingsView: View {
                 switch result {
                 case .success(let url):
                     do {
-                        // Read the data from the selected file
                         let data = try Data(contentsOf: url)
-                        // Decode it into Pet objects
                         self.importedPets = try BackupManager.decode(from: data)
-                        // Show the final warning before overwriting everything
                         self.showRestoreConfirmation = true
                     } catch {
-                        presentAlert(title: "Restore Failed", message: "The selected file could not be read or is not a valid backup file.")
+                        presentAlert(title: "Restore Failed", message: "File is invalid.")
                     }
-                case .failure(let error):
-                    presentAlert(title: "Import Failed", message: "Could not import file. Error: \(error.localizedDescription)")
+                case .failure(let error): print("Import error: \(error)"); presentAlert(title: "Import Failed", message: "Could not import file.")
                 }
             }
-            
-            // --- Alerts ---
-            
-            // A. Generic success/failure alert
-            .alert(alertTitle, isPresented: $showAlert) {
-                Button("OK") { }
-            } message: {
-                Text(alertMessage)
-            }
-            
-            // B. Restore confirmation alert (CRITICAL)
+            .alert(alertTitle, isPresented: $showAlert) { Button("OK") { } } message: { Text(alertMessage) }
             .alert("Are you sure?", isPresented: $showRestoreConfirmation) {
                 Button("Proceed & Overwrite", role: .destructive) {
                     if let pets = importedPets {
-                        // If user confirms, perform the restore
                         BackupManager.restore(from: pets, context: modelContext)
                         presentAlert(title: "Restore Complete", message: "Your data has been restored.")
                     }
                 }
                 Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Restoring from a backup will delete all current data in the app. This action cannot be undone.")
+            } message: { Text("Restoring from a backup will delete all current data in the app. This action cannot be undone.") }
+        }
+        // Initialize state from AppStorage on load
+        .onAppear {
+            if let theme = AppTheme(rawValue: storedTheme) {
+                selectedTheme = theme
             }
+            isSoundEnabled = storedSound
+            selectedSnoozeDuration = storedSnoozeDuration
         }
     }
     
-    // Helper to present alerts
-    private func presentAlert(title: String, message: String) {
-        self.alertTitle = title
-        self.alertMessage = message
-        self.showAlert = true
-    }
-    
-    // Helper to format the date for the default filename
-    private func formattedDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: .now)
-    }
+    // Helper functions (omitted for brevity, assume they exist)
+    private func presentAlert(title: String, message: String) { self.alertTitle = title; self.alertMessage = message; self.showAlert = true }
+    private func formattedDate() -> String { let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd"; return formatter.string(from: .now) }
 }
 
 
-// --- Helper Struct for File Exporter ---
-// This struct makes our data conform to what the .fileExporter needs
+// --- BackupDocument Helper (Required for file operations) ---
+// (Assume the required BackupManager and other models are accessible)
 struct BackupDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
     var data: Data?
 
-    init(context: ModelContext) { // This line now works
-        do {
-            self.data = try BackupManager.encode(context: context)
-        } catch { // This block is now reachable
-            print("Failed to encode data for backup document: \(error)")
-            self.data = nil
-        }
+    init(context: ModelContext) {
+        do { self.data = try BackupManager.encode(context: context) } catch { self.data = nil }
     }
-    
-    init(configuration: ReadConfiguration) throws {
-        self.data = configuration.file.regularFileContents
-    }
-
+    init(configuration: ReadConfiguration) throws { self.data = configuration.file.regularFileContents }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        guard let data = data else {
-            throw CocoaError(.fileWriteUnknown)
-        }
+        guard let data = data else { throw CocoaError(.fileWriteUnknown) }
         return FileWrapper(regularFileWithContents: data)
     }
 }

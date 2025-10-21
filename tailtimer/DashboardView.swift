@@ -137,7 +137,7 @@ struct DashboardView: View {
                         HStack(spacing: 12) {
                             OverviewCard(value: remainingCount, label: "To do", color: .blue)
                             OverviewCard(value: takenCount, label: "Done", color: .green)
-                            OverviewCard(value: ignoredCount, label: "Skipped", color: Color(.systemGray))
+                            OverviewCard(value: ignoredCount, label: "Skipped", color: .red)
                         }
                         .padding(.horizontal)
 
