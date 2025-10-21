@@ -15,6 +15,12 @@ struct DashboardView: View {
     // --- Binding for selectedTab ---
     @Binding var selectedTab: Int
 
+    // --- Color Theme ---
+    private let primaryColor = Color.blue
+    private let secondaryColor = Color.purple
+    private let accentColor = Color.orange
+    private let backgroundColor = Color(.systemGroupedBackground)
+    
     // --- Computed Properties ---
     private var scheduledDosesToday: [ScheduledDose] {
         var doses: [ScheduledDose] = []
@@ -40,7 +46,6 @@ struct DashboardView: View {
             return todayWeekday == startWeekday
         case "Custom Interval":
             if let interval = med.customInterval {
-                // Ensure daysSinceStart is not negative before modulo operation
                 let daysSinceStart = Calendar.current.dateComponents([.day], from: start, to: today).day ?? 0
                 return daysSinceStart >= 0 && daysSinceStart % interval == 0
             }
@@ -80,125 +85,51 @@ struct DashboardView: View {
     }
     private var currentDateString: String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MMMM d, EEEE" // Format: October 21, Tuesday
+        dateFormatter.dateFormat = "MMMM d, EEEE"
         return dateFormatter.string(from: Date())
     }
     private var upcomingAndRecentDoses: [ScheduledDose] {
         let upcoming = remainingDoses.prefix(3)
         let needed = 3 - upcoming.count
-        // Ensure needed is not negative if upcoming has 3 or more
         let recentCompleted = completedDoses.suffix(max(0, needed))
         return (upcoming + recentCompleted).sorted { $0.time < $1.time }
     }
 
     // --- Main Body ---
     var body: some View {
-        ZStack { // Use ZStack to overlay the popup
+        ZStack {
             NavigationStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) { // Reduced spacing
-
-                        // Header
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(greeting)
-                                    .font(.largeTitle).fontWeight(.bold)
-                                Text(currentDateString)
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button { showAnalyticsSheet = true } label: {
-                                Image(systemName: "chart.pie")
-                                    .font(.title2).fontWeight(.semibold)
-                                    .padding(10).background(Color(.systemGray5))
-                                    .foregroundColor(.primary).clipShape(Circle())
-                            }
-                            Button { withAnimation(.spring) { showAddOptions = true } } label: {
-                                Image(systemName: "plus")
-                                    .font(.title2).fontWeight(.semibold)
-                                    .padding(10).background(Color(.systemGray5))
-                                    .foregroundColor(.primary).clipShape(Circle())
-                            }
-                        }
-                        .padding(.horizontal)
-
-                        // Summary Stats
-                        HStack(spacing: 12) {
-                             OverviewCard(value: pets.count, label: "Total Pets", color: .purple)
-                             OverviewCard(value: activeMedicationsCount, label: "Active Meds", color: .orange)
-                        }
-                        .padding(.horizontal)
-
-                        // Overall Performance
-                        OverallPerformanceView(percentage: overallPerformance)
-                            .padding(.horizontal)
-
-                        // Today's Overview
-                        HStack(spacing: 12) {
-                            OverviewCard(value: remainingCount, label: "To do", color: .blue)
-                            OverviewCard(value: takenCount, label: "Done", color: .green)
-                            OverviewCard(value: ignoredCount, label: "Skipped", color: .red)
-                        }
-                        .padding(.horizontal)
-
-                        // Today's Medication
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Text("Today's Medication").font(.title2).fontWeight(.bold)
-                                Spacer()
-                                Button("See all") { selectedTab = 1 }
-                                    .font(.subheadline).fontWeight(.medium)
-                            }
-                            VStack(spacing: 12) {
-                                if upcomingAndRecentDoses.isEmpty && scheduledDosesToday.isEmpty {
-                                    Text("No medications scheduled.")
-                                        .foregroundStyle(.secondary)
-                                        .frame(maxWidth: .infinity, alignment: .center)
-                                        .padding(.vertical)
-                                } else {
-                                    ForEach(upcomingAndRecentDoses) { dose in
-                                        UpcomingMedicationRow(dose: dose, log: logFor(dose: dose))
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-
-                        // Your Pets
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Text("Your Pets").font(.title2).fontWeight(.bold)
-                                Spacer()
-                                Button("See all") { selectedTab = 2 }
-                                .font(.subheadline).fontWeight(.medium)
-                            }
-                            VStack(spacing: 12) {
-                                if pets.isEmpty {
-                                    Text("Add your first pet.")
-                                        .foregroundStyle(.secondary)
-                                        .frame(maxWidth: .infinity, alignment: .center)
-                                        .padding(.vertical)
-                                } else {
-                                    ForEach(pets) { pet in
-                                        DashboardPetRow(pet: pet)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // Header Section
+                        headerSection
+                        
+                        // Quick Stats Cards
+                        quickStatsSection
+                        
+                        // Performance Section
+                        performanceSection
+                        
+                        // Today's Progress
+                        todayProgressSection
+                        
+                        // Medications Section
+                        medicationsSection
+                        
+                        // Pets Section
+                        petsSection
                     }
-                    .padding(.vertical) // Add padding top/bottom of ScrollView content
+                    .padding(.vertical)
                 }
-                .background(Color(.systemGroupedBackground))
-                .navigationBarHidden(true) // Keep nav bar hidden
-                // --- Sheets ---
+                .background(backgroundColor)
+                .navigationBarHidden(true)
                 .sheet(isPresented: $showAddPetSheet) { AddPetView() }
                 .sheet(isPresented: $showAnalyticsSheet) { AnalyticsView() }
             }
-            .disabled(showAddOptions) // Disable background interaction when popup is shown
+            .disabled(showAddOptions)
 
-            // --- Custom Popup Overlay ---
+            // Add Options Popup
             if showAddOptions {
                 AddOptionsPopupView(
                     addPetAction: {
@@ -207,134 +138,496 @@ struct DashboardView: View {
                     },
                     addMedicationAction: {
                         withAnimation { showAddOptions = false }
-                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { selectedTab = 2 } // Switch to Pets tab
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { selectedTab = 2 }
                     },
                     dismissAction: { withAnimation(.spring) { showAddOptions = false } }
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
-        } // End ZStack
-    }
-}
-
-
-// --- Helper Views Below ---
-
-struct OverallPerformanceView: View {
-    let percentage: Double
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Overall Performance").font(.subheadline).fontWeight(.medium).foregroundStyle(.secondary)
-                Spacer()
-                Text(percentage.formatted(.percent.precision(.fractionLength(0))))
-                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(.primary)
-            }
-            GeometryReader { geo in
-                Capsule().fill(Color(.systemGray5))
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(percentage >= 0.7 ? Color.green : (percentage >= 0.4 ? Color.orange : Color.red))
-                            .frame(width: max(0, geo.size.width * percentage))
-                            .animation(.spring, value: percentage)
-                    }
-            }
-            .frame(height: 6)
         }
     }
-}
-
-struct OverviewCard: View {
-    let value: Int
-    let label: String
-    let color: Color
-    var body: some View {
-        VStack(spacing: 4) {
-            Text("\(value)").font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(color).contentTransition(.numericText()).animation(.spring, value: value)
-            Text(label).font(.subheadline).fontWeight(.medium).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 16).background(Color(.systemBackground))
-        .cornerRadius(12).shadow(color: .black.opacity(0.05), radius: 3, y: 1)
-    }
-}
-
-struct UpcomingMedicationRow: View {
-    let dose: ScheduledDose
-    let log: MedicationLog?
-    private var pet: Pet? { dose.medication.pet }
-    private var isCompleted: Bool { log != nil }
-    private var wasTaken: Bool { log?.status == "taken" }
-    private var backgroundColor: Color {
-        if isCompleted { return wasTaken ? Color.green.opacity(0.15) : Color.red.opacity(0.15) }
-        else { return Color(.systemGray6) }
-    }
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(pet?.name.prefix(1) ?? "?")
-                .font(.headline).fontWeight(.bold).foregroundColor(.white)
-                .frame(width: 40, height: 40).background(petColor(for: pet)).clipShape(Circle())
-            VStack(alignment: .leading) {
-                Text(pet?.name ?? "Unknown Pet").font(.headline)
-                Text("\(dose.medication.name), \(dose.medication.dosage)")
-                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+    
+    // MARK: - Header Section
+    private var headerSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(greeting)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(LinearGradient(
+                        colors: [primaryColor, secondaryColor],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ))
+                Text(currentDateString)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
-            HStack(spacing: 6) {
-                Text(dose.time, style: .time)
-                    .font(.headline).fontWeight(.bold)
-                    .foregroundColor(isCompleted ? .secondary : .primary)
-                    .strikethrough(isCompleted, color: .secondary)
-                if isCompleted {
-                    Image(systemName: wasTaken ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(wasTaken ? .green : .red)
+            HStack(spacing: 12) {
+                Button { showAnalyticsSheet = true } label: {
+                    Image(systemName: "chart.pie.fill")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(secondaryColor)
+                        .clipShape(Circle())
+                        .shadow(color: secondaryColor.opacity(0.3), radius: 4, y: 2)
+                }
+                Button { withAnimation(.spring) { showAddOptions = true } } label: {
+                    Image(systemName: "plus")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(accentColor)
+                        .clipShape(Circle())
+                        .shadow(color: accentColor.opacity(0.3), radius: 4, y: 2)
                 }
             }
         }
-        .padding().background(backgroundColor).cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 3, y: 1)
+        .padding(.horizontal)
     }
-    private func petColor(for pet: Pet?) -> Color {
-        let petColors: [Color] = [.blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .yellow]
-        guard let petName = pet?.name else { return .gray }
-        let hash = abs(petName.hashValue); return petColors[hash % petColors.count]
+    
+    // MARK: - Quick Stats Section
+    private var quickStatsSection: some View {
+        HStack(spacing: 12) {
+            StatCard(
+                value: pets.count,
+                label: "Total Pets",
+                icon: "pawprint.fill",
+                color: .purple,
+                gradient: [.purple, .indigo]
+            )
+            
+            StatCard(
+                value: activeMedicationsCount,
+                label: "Active Meds",
+                icon: "pills.fill",
+                color: .orange,
+                gradient: [.orange, .red]
+            )
+        }
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Performance Section
+    private var performanceSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Medication Performance")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Text("Your overall adherence rate")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(overallPerformance.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(performanceColor)
+            }
+            
+            PerformanceBar(percentage: overallPerformance)
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
+        .padding(.horizontal)
+    }
+    
+    private var performanceColor: Color {
+        switch overallPerformance {
+        case 0.8...1.0: return .green
+        case 0.6..<0.8: return .orange
+        default: return .red
+        }
+    }
+    
+    // MARK: - Today's Progress Section
+    private var todayProgressSection: some View {
+        HStack(spacing: 12) {
+            ProgressCard(
+                value: remainingCount,
+                label: "To Do",
+                icon: "clock.fill",
+                color: .blue,
+                gradient: [.blue, .cyan]
+            )
+            
+            ProgressCard(
+                value: takenCount,
+                label: "Completed",
+                icon: "checkmark.circle.fill",
+                color: .green,
+                gradient: [.green, .mint]
+            )
+            
+            ProgressCard(
+                value: ignoredCount,
+                label: "Missed",
+                icon: "xmark.circle.fill",
+                color: .red,
+                gradient: [.red, .orange]
+            )
+        }
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Medications Section
+    private var medicationsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(
+                title: "Today's Medication",
+                actionTitle: "See All",
+                action: { selectedTab = 1 }
+            )
+            
+            if upcomingAndRecentDoses.isEmpty && scheduledDosesToday.isEmpty {
+                EmptyStateView(
+                    icon: "pills",
+                    title: "No Medications",
+                    message: "No medications scheduled for today"
+                )
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(upcomingAndRecentDoses) { dose in
+                        MedicationCard(dose: dose, log: logFor(dose: dose))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Pets Section
+    private var petsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(
+                title: "Your Pets",
+                actionTitle: "See All",
+                action: { selectedTab = 2 }
+            )
+            
+            if pets.isEmpty {
+                EmptyStateView(
+                    icon: "pawprint",
+                    title: "No Pets Added",
+                    message: "Add your first pet to get started"
+                )
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(pets) { pet in
+                        PetCard(pet: pet)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
     }
 }
 
-struct DashboardPetRow: View {
-    let pet: Pet
+// MARK: - Supporting Views
+
+struct StatCard: View {
+    let value: Int
+    let label: String
+    let icon: String
+    let color: Color
+    let gradient: [Color]
+    
     var body: some View {
-        HStack(spacing: 12) {
-            Text(pet.name.prefix(1))
-                .font(.headline).fontWeight(.bold).foregroundColor(.white)
-                .frame(width: 40, height: 40).background(petColor(for: pet)).clipShape(Circle())
-            VStack(alignment: .leading) {
-                Text(pet.name).font(.headline)
-                Text(pet.breed.isEmpty ? pet.species : pet.breed)
-                    .font(.subheadline).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(.white)
+                Spacer()
             }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(value)")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white.opacity(0.9))
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: gradient,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: color.opacity(0.3), radius: 8, y: 4)
+    }
+}
+
+struct ProgressCard: View {
+    let value: Int
+    let label: String
+    let icon: String
+    let color: Color
+    let gradient: [Color]
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+                .padding(8)
+                .background(color.opacity(0.1))
+                .clipShape(Circle())
+            
+            Text("\(value)")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+            
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+    }
+}
+
+struct PerformanceBar: View {
+    let percentage: Double
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(.systemGray5))
+                
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(0, geo.size.width * percentage))
+                    .animation(.spring(response: 0.8, dampingFraction: 0.8), value: percentage)
+            }
+        }
+        .frame(height: 8)
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+    let actionTitle: String
+    let action: () -> Void
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.title2)
+                .fontWeight(.bold)
+            
             Spacer()
+            
+            Button(action: action) {
+                HStack(spacing: 4) {
+                    Text(actionTitle)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.blue)
+            }
+        }
+    }
+}
+
+struct MedicationCard: View {
+    let dose: ScheduledDose
+    let log: MedicationLog?
+    
+    private var pet: Pet? { dose.medication.pet }
+    private var isCompleted: Bool { log != nil }
+    private var wasTaken: Bool { log?.status == "taken" }
+    private var statusColor: Color {
+        if isCompleted {
+            return wasTaken ? .green : .red
+        } else {
+            return .blue
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Pet Avatar
+            ZStack {
+                Circle()
+                    .fill(petColor(for: pet).opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Text(pet?.name.prefix(1) ?? "?")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(petColor(for: pet))
+            }
+            
+            // Medication Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(pet?.name ?? "Unknown Pet")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text("\(dose.medication.name) • \(dose.medication.dosage)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            // Time and Status
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(dose.time, style: .time)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(isCompleted ? .secondary : .primary)
+                    .strikethrough(isCompleted)
+                
+                if isCompleted {
+                    HStack(spacing: 4) {
+                        Image(systemName: wasTaken ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        Text(wasTaken ? "Taken" : "Missed")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(statusColor)
+                } else {
+                    Text("Upcoming")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+    }
+    
+    private func petColor(for pet: Pet?) -> Color {
+        let petColors: [Color] = [.blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .mint]
+        guard let petName = pet?.name else { return .gray }
+        let hash = abs(petName.hashValue)
+        return petColors[hash % petColors.count]
+    }
+}
+
+struct PetCard: View {
+    let pet: Pet
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Pet Avatar
+            ZStack {
+                Circle()
+                    .fill(petColor(for: pet).opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Text(pet.name.prefix(1))
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(petColor(for: pet))
+            }
+            
+            // Pet Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(pet.name)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text(pet.breed.isEmpty ? pet.species : "\(pet.species) • \(pet.breed)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            // View Button
             NavigationLink(destination: PetProfileView(pet: pet)) {
-                Text("View").font(.subheadline).fontWeight(.medium)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Color(.systemGray5)).cornerRadius(8)
+                Text("View")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundColor(.blue)
+                    .cornerRadius(8)
             }
             .buttonStyle(.plain)
         }
-        .padding().background(Color(.systemGray6))
-        .cornerRadius(12).shadow(color: .black.opacity(0.05), radius: 3, y: 1)
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
-    private func petColor(for pet: Pet?) -> Color {
-        let petColors: [Color] = [.blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .yellow]
-        guard let petName = pet?.name else { return .gray }
-        let hash = abs(petName.hashValue); return petColors[hash % petColors.count]
+    
+    private func petColor(for pet: Pet) -> Color {
+        let petColors: [Color] = [.blue, .cyan, .green, .orange, .pink, .purple, .red, .teal, .indigo, .mint]
+        let hash = abs(pet.name.hashValue)
+        return petColors[hash % petColors.count]
     }
 }
 
-// --- Preview ---
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+                .opacity(0.5)
+            
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+                
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+    }
+}
+
+// MARK: - Preview
 struct DashboardView_Previews: PreviewProvider {
     static var previews: some View {
-        // Provide a constant binding for the preview
         DashboardView(selectedTab: .constant(0))
             .modelContainer(for: [Pet.self, Medication.self, MedicationLog.self], inMemory: true)
     }
