@@ -15,7 +15,8 @@ struct AddPetView: View {
     @State private var name: String = ""
     @State private var species: String = ""
     @State private var breed: String = ""
-    @State private var age: Int = 0
+    // MODIFIED: Change to optional Int to allow the field to be blank (show placeholder)
+    @State private var age: Int? = nil
     @State private var gender: String = "Male" // Default value
     
     // Photo Picker state
@@ -77,6 +78,7 @@ struct AddPetView: View {
                     TextField("Breed", text: $breed)
                     
                     // Age
+                    // MODIFIED: Use optional binding with $age
                     TextField("Age", value: $age, formatter: ageFormatter)
                         .keyboardType(.numberPad)
                     
@@ -112,7 +114,7 @@ struct AddPetView: View {
                     name = pet.name
                     species = pet.species
                     breed = pet.breed
-                    age = pet.age
+                    age = pet.age // Age is read directly as Int from Pet
                     gender = pet.gender
                     selectedPhotoData = pet.photo
                 }
@@ -123,12 +125,15 @@ struct AddPetView: View {
     // Function to save or update the pet
     private func savePet() {
         withAnimation {
+            // Safely unwrap age, defaulting to 0 if nil (user left it blank)
+            let finalAge = age ?? 0
+            
             if let pet = petToEdit {
                 // We are editing, so update the existing pet's properties
                 pet.name = name
                 pet.species = species
                 pet.breed = breed
-                pet.age = age
+                pet.age = finalAge // Use the unwrapped age
                 pet.gender = gender
                 pet.photo = selectedPhotoData
             } else {
@@ -137,7 +142,7 @@ struct AddPetView: View {
                     name: name,
                     species: species,
                     breed: breed,
-                    age: age,
+                    age: finalAge, // Use the unwrapped age
                     gender: gender,
                     photo: selectedPhotoData
                 )
