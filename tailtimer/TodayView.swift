@@ -12,7 +12,38 @@ struct TodayView: View {
     @State private var showToast: Bool = false
     @State private var toastInfo: ToastInfo? = nil
     
-    // --- (Computed properties and helper functions) ---
+    // --- (New properties for consistent styling from DashboardView) ---
+    private let primaryColor = Color.blue
+    private let secondaryColor = Color.purple
+    private let accentColor = Color.orange
+    private let backgroundColor = Color(.systemGroupedBackground)
+
+    private var currentDateString: String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMMM d, EEEE"
+        return dateFormatter.string(from: Date())
+    }
+    
+    private var todayHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Today's Schedule")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(LinearGradient(
+                        colors: [accentColor, primaryColor],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ))
+                Text(currentDateString)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+    }
+    
+    // --- (Computed properties and helper functions are unchanged) ---
     
     private var scheduledDosesToday: [ScheduledDose] {
         var doses: [ScheduledDose] = []
@@ -63,54 +94,67 @@ struct TodayView: View {
             NavigationStack {
                 ScrollView {
                     VStack(spacing: 20) {
+                        
+                        // 1. Custom Header
+                        todayHeader
+                            .padding(.top)
+
+                        // 2. Progress Header
                         TodayProgressHeader(
                             totalDoses: totalDosesToday,
                             taken: takenCount,
-                            Missed: MissedCount
+                            Missed: MissedCount,
+                            // FIX: Pass the computed property here
+                            remainingCount: remainingCount
                         )
                         .padding(.horizontal)
                         
-                        // --- (Rest of the view is unchanged) ---
-                        TodaySection(
-                            period: .morning,
-                            doses: doses(for: .morning),
-                            logs: logs,
-                            onMark: markAsTaken,
-                            onEdit: { med in medicationToEdit = med },
-                            onDelete: deleteMedication
-                        )
-                        
-                        TodaySection(
-                            period: .afternoon,
-                            doses: doses(for: .afternoon),
-                            logs: logs,
-                            onMark: markAsTaken,
-                            onEdit: { med in medicationToEdit = med },
-                            onDelete: deleteMedication
-                        )
-                        
-                        TodaySection(
-                            period: .evening,
-                            doses: doses(for: .evening),
-                            logs: logs,
-                            onMark: markAsTaken,
-                            onEdit: { med in medicationToEdit = med },
-                            onDelete: deleteMedication
-                        )
-                        
-                        TodaySection(
-                            period: .night,
-                            doses: doses(for: .night),
-                            logs: logs,
-                            onMark: markAsTaken,
-                            onEdit: { med in medicationToEdit = med },
-                            onDelete: deleteMedication
-                        )
+                        // --- (Sections wrapped in a VStack for horizontal padding) ---
+                        VStack(spacing: 12) {
+                            TodaySection(
+                                period: .morning,
+                                doses: doses(for: .morning),
+                                logs: logs,
+                                onMark: markAsTaken,
+                                onEdit: { med in medicationToEdit = med },
+                                onDelete: deleteMedication
+                            )
+                            
+                            TodaySection(
+                                period: .afternoon,
+                                doses: doses(for: .afternoon),
+                                logs: logs,
+                                onMark: markAsTaken,
+                                onEdit: { med in medicationToEdit = med },
+                                onDelete: deleteMedication
+                            )
+                            
+                            TodaySection(
+                                period: .evening,
+                                doses: doses(for: .evening),
+                                logs: logs,
+                                onMark: markAsTaken,
+                                onEdit: { med in medicationToEdit = med },
+                                onDelete: deleteMedication
+                            )
+                            
+                            TodaySection(
+                                period: .night,
+                                doses: doses(for: .night),
+                                logs: logs,
+                                onMark: markAsTaken,
+                                onEdit: { med in medicationToEdit = med },
+                                onDelete: deleteMedication
+                            )
+                        }
+                        .padding(.horizontal)
+
                     }
                     .padding(.vertical)
                 }
-                .background(Color(.systemGroupedBackground))
-                .navigationTitle("Today's Schedule")
+                .background(backgroundColor) // Use the Dashboard background color
+                // Hide the default navigation bar for the custom header
+                .navigationBarHidden(true)
                 .sheet(item: $medicationToEdit) { med in
                     if let pet = med.pet {
                         AddMedicationView(pet: pet, medicationToEdit: med)
@@ -129,7 +173,7 @@ struct TodayView: View {
         }
     }
     
-    // --- (Stats & Logic functions) ---
+    // --- (Stats & Logic functions are unchanged) ---
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
         // --- UPDATED ---
         let doseScheduledTime = dose.scheduledTime(on: .now)
@@ -155,6 +199,7 @@ struct TodayView: View {
         completedDoses.filter { logFor(dose: $0)?.status == "missed" }.count
     }
     
+    // The calculated property used to be here, which is fine, but it needs to be passed down.
     private var remainingCount: Int {
         scheduledDosesToday.filter { logFor(dose: $0) == nil }.count
     }
@@ -194,7 +239,7 @@ struct TodayView: View {
     }
 }
 
-// --- (Enum, TodaySection, TodayProgressHeader, StatItem are unchanged) ---
+// --- (Enum remains the same) ---
 
 enum TimePeriod: String, CaseIterable {
     case morning = "Morning", afternoon = "Afternoon", evening = "Evening", night = "Night"
@@ -225,6 +270,7 @@ enum TimePeriod: String, CaseIterable {
     }
 }
 
+// --- TodaySection (Reused from previous design) ---
 struct TodaySection: View {
     let period: TimePeriod
     let doses: [ScheduledDose]
@@ -235,7 +281,6 @@ struct TodaySection: View {
     var onDelete: (Medication) -> Void
     
     private func logFor(dose: ScheduledDose) -> MedicationLog? {
-        // --- UPDATED ---
         let doseScheduledTime = dose.scheduledTime(on: .now)
         return logs.first { log in
             log.medication?.id == dose.medication.id &&
@@ -254,17 +299,24 @@ struct TodaySection: View {
     
     var body: some View {
         if !doses.isEmpty {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                
+                // Header Content
                 HStack(spacing: 12) {
                     Image(systemName: period.icon)
-                        .font(.title2).foregroundColor(period.color).frame(width: 30)
+                        .font(.title2).foregroundColor(.white).frame(width: 30)
+                        .padding(8)
+                        .background(period.color)
+                        .clipShape(Circle())
+                    
                     Text(period.rawValue).font(.title2).fontWeight(.bold)
                     Spacer()
                     Text("\(completedDoses.count)/\(doses.count) Completed")
                         .font(.caption).fontWeight(.medium).foregroundStyle(.secondary)
                 }
-                .padding(.horizontal)
-                
+                .padding([.horizontal, .top], 16)
+
+                // Inner content (The medication rows)
                 VStack(spacing: 12) {
                     ForEach(remainingDoses) { dose in
                         TodayMedicationRow(dose: dose, log: nil, onMark: onMark, onEdit: onEdit)
@@ -275,24 +327,29 @@ struct TodaySection: View {
                     }
                     
                     if !completedDoses.isEmpty {
-                        DisclosureGroup(isExpanded: $isExpanded.animation()) {
+                        DisclosureGroup(isExpanded: $isExpanded.animation(.spring)) {
                             VStack(spacing: 12) {
                                 ForEach(completedDoses) { dose in
                                     TodayMedicationRow(dose: dose, log: logFor(dose: dose), onMark: onMark, onEdit: onEdit)
                                         .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
+                                        .opacity(0.7)
                                         .swipeActions(edge: .trailing) {
                                             Button(role: .destructive) { onDelete(dose.medication) } label: { Label("Delete", systemImage: "trash") }
                                         }
                                 }
                             }
                         } label: {
-                            Text("Completed").font(.subheadline).fontWeight(.medium).foregroundStyle(.secondary)
+                            Text("Completed Doses (\(completedDoses.count))").font(.subheadline).fontWeight(.medium).foregroundStyle(.secondary)
                         }
+                        .padding(.top, 8)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 12)
+                .padding([.horizontal, .bottom], 16)
             }
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+            
             .onAppear {
                 isExpanded = (period == TimePeriod.current && !remainingDoses.isEmpty) || remainingDoses.isEmpty
             }
@@ -301,88 +358,127 @@ struct TodaySection: View {
 }
 
 
+// --- TodayProgressHeader (Final Adherence-Only Bar) ---
 struct TodayProgressHeader: View {
     let totalDoses: Int
     let taken: Int
     let Missed: Int
+    let remainingCount: Int
 
     private var takenPercent: Double {
         totalDoses == 0 ? 0 : Double(taken) / Double(totalDoses)
     }
-    private var MissedPercent: Double {
-        totalDoses == 0 ? 0 : Double(Missed) / Double(totalDoses)
-    }
-    private var progressText: Double {
-        totalDoses == 0 ? 0 : Double(taken) / Double(totalDoses)
-    }
-    private var remaining: Int {
-        totalDoses - taken - Missed
+    private var overallProgressText: String {
+        totalDoses == 0 ? "0%" : (takenPercent * 100).formatted(.number.precision(.fractionLength(0))) + "%"
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(progressText.formatted(.percent.precision(.fractionLength(0))))
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                Text("Taken")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: 16) {
             
-            GeometryReader { geo in
-                HStack(spacing: 0) {
-                    Color.green
-                        .frame(width: geo.size.width * takenPercent)
-                    Color.red
-                        .frame(width: geo.size.width * MissedPercent)
-                    Color(.systemGray5)
-                        .frame(maxWidth: .infinity)
+            // 1. Progress Bar and Percentage
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading) {
+                    Text(overallProgressText)
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        // Apply the same gradient for the text
+                        .foregroundStyle(LinearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing))
+                        .contentTransition(.numericText())
+                    Text("Adherence Rate")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
                 }
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: takenPercent)
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: MissedPercent)
+                Spacer()
+                // Total Doses Count
+                VStack(alignment: .trailing) {
+                    Text("\(totalDoses)")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    Text("Total Doses")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .frame(height: 10)
-            .clipShape(Capsule())
             
+            // Segmented Progress Bar - Adherence Only (Matches Screenshot Visuals)
+            AdherenceProgressBar(
+                takenPercentage: takenPercent
+            )
+            .frame(height: 15) // Slightly thicker bar
+
+            // 2. Statistics Row
             HStack {
-                StatItem(value: remaining, label: "Remaining", icon: "list.bullet.clipboard", color: .secondary)
+                // Taken: Using Green icon for universal success
+                ProgressStatItem(value: taken, label: "Taken", icon: "checkmark.circle.fill", color: Color.green)
                 Spacer()
-                StatItem(value: taken, label: "Taken", icon: "checkmark.circle.fill", color: .green)
+                // Missed: Using Red icon for universal failure
+                ProgressStatItem(value: Missed, label: "Missed", icon: "xmark.circle.fill", color: Color.red)
                 Spacer()
-                StatItem(value: Missed, label: "Missed", icon: "xmark.circle.fill", color: .red)
+                // Remaining
+                ProgressStatItem(value: remainingCount, label: "Remaining", icon: "clock.fill", color: .secondary)
             }
+            .padding(.top, 8)
         }
-        .padding()
+        .padding(20)
         .background(Color(.systemBackground))
         .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
     }
 }
 
-struct StatItem: View {
+// Helper view to draw the segmented progress bar
+struct AdherenceProgressBar: View {
+    let takenPercentage: Double
+    
+    // Define the gradient for the 'Taken' segment (Orange to Red)
+    let takenGradient = LinearGradient(
+        colors: [Color.orange, Color.red],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                
+                // Background Track (Empty/Uncompleted Portion)
+                Capsule()
+                    .fill(Color(.systemGray4))
+                    
+                // Taken Segment (Gradient) - Overlays the background
+                // This bar only shows the percentage of successful doses (Adherence Rate)
+                Capsule()
+                    .fill(takenPercentage > 0 ? takenGradient : LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: max(0, geo.size.width * takenPercentage))
+                    .animation(.spring(response: 0.8, dampingFraction: 0.8), value: takenPercentage)
+            }
+        }
+    }
+}
+
+// Helper view for a single stat item
+struct ProgressStatItem: View {
     let value: Int
     let label: String
     let icon: String
     let color: Color
     
     var body: some View {
-        VStack(spacing: 8) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundColor(color)
-
-            Text("\(value)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .contentTransition(.numericText())
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: value)
             
-            Text(label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(color == .secondary ? .secondary : color)
+            VStack(alignment: .leading) {
+                Text("\(value)")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .contentTransition(.numericText())
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .frame(minWidth: 70)
     }
 }
