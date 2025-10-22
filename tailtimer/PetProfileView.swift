@@ -3,12 +3,15 @@ import SwiftData
 
 struct PetProfileView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss // Used to close the view after deletion
     @Bindable var pet: Pet
     
     @State private var isEditingPet = false
     @State private var isAddingMedication = false
     @State private var isAddingHealthNote = false
     @State private var medicationToEdit: Medication?
+    // ADDED: State for delete confirmation
+    @State private var showDeleteConfirmation = false
     
     // Computed properties for sorted data
     private var sortedMedications: [Medication] {
@@ -17,6 +20,22 @@ struct PetProfileView: View {
     }
     private var sortedHealthNotes: [HealthNote] {
         pet.healthNotes?.sorted { $0.date > $1.date } ?? []
+    }
+
+    // Function to handle pet deletion and navigation
+    private func deletePetAndDismiss() {
+        // 1. Manually remove notifications (crucial before deletion)
+        if let medications = pet.medications {
+            for med in medications {
+                NotificationManager.shared.removeNotification(for: med)
+            }
+        }
+        
+        // 2. Delete the pet (cascade handles records)
+        modelContext.delete(pet)
+        
+        // 3. Dismiss the profile view
+        dismiss()
     }
     
     var body: some View {
@@ -59,21 +78,19 @@ struct PetProfileView: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color(.systemGroupedBackground))
             
-            // --- Section 2: Medications (UPDATED) ---
+            // --- Section 2: Medications ---
             Section("Medications") {
                 if sortedMedications.isEmpty {
                     Text("No medications added yet.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(sortedMedications) { medication in
-                        // --- THIS IS THE CHANGE ---
                         Button {
                             medicationToEdit = medication // Set the med to edit on tap
                         } label: {
                             MedicationRowView(medication: medication)
                         }
-                        .buttonStyle(.plain) // Make it look like a row, not a blue button
-                        // --- END OF CHANGE ---
+                        .buttonStyle(.plain)
                         .swipeActions(edge: .leading) {
                             Button {
                                 medicationToEdit = medication
@@ -83,7 +100,6 @@ struct PetProfileView: View {
                             .tint(.blue)
                         }
                     }
-                    // Changed .onDelete to operate on sortedMedications, pointing to the safe handler below
                     .onDelete(perform: deleteMedication)
                 }
                 
@@ -115,6 +131,18 @@ struct PetProfileView: View {
                     Label("View Medication History", systemImage: "chart.bar.xaxis")
                 }
             }
+            
+            // --- Section 5: Delete Pet (NEW) ---
+            Section {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Delete \(pet.name)")
+                    }
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(pet.name)
@@ -138,6 +166,13 @@ struct PetProfileView: View {
         .sheet(isPresented: $isAddingHealthNote) {
             AddHealthNoteView(pet: pet)
         }
+        // ADDED: Confirmation Alert for Pet Deletion
+        .alert("Delete Pet?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive, action: deletePetAndDismiss)
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete \(pet.name)? This action is permanent and will remove all associated medications and records.")
+        }
     }
     
     // --- Delete Functions (FIXED to prevent crash on deleting last item) ---
@@ -158,9 +193,6 @@ struct PetProfileView: View {
                 // 3. Delete the medication object from the database context
                 modelContext.delete(medication)
             }
-            
-            // NOTE: The UI update relies on SwiftData detecting the change in pet.medications
-            // or the deletion of the object. Using the safer removal logic above should prevent crashes.
         }
     }
     
